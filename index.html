@@ -2423,6 +2423,7 @@ function renderSettings(){
   renderBulk();
   if(nextPz){const [k,...rest]=nextPz.split("|");const key=rest.join("|");const t=[...el.querySelectorAll(".pz")].find(z=>z.dataset.kind===k&&z.dataset.key===key);if(t){t.focus({preventScroll:false});}nextPz=null;}
 }
+let lastClickPaste=0;
 function wireSettings(){
   const el=$("settingsBody");
   el.addEventListener("click",e=>{const id=e.target.id;
@@ -2434,10 +2435,11 @@ function wireSettings(){
   el.addEventListener("change",e=>{if(e.target.id==="introSkip"){try{localStorage.setItem("appraiser.noIntro",e.target.checked?"1":"0");}catch(_){}toast(e.target.checked?"Intro skipped on this device":"Intro will play on open");return;}
     const f=e.target.closest(".pIn");if(f&&f.files[0])takeImage(f.dataset.kind,f.dataset.key,f.files[0]);});
   el.addEventListener("paste",e=>{const z=e.target.closest(".pz");if(!z)return;e.preventDefault();
+    if(Date.now()-lastClickPaste<2500)return;
     const items=[...(e.clipboardData&&e.clipboardData.items||[])];const it=items.find(i=>i.type&&i.type.startsWith("image/"));
     const file=(e.clipboardData.files&&e.clipboardData.files[0])||(it&&it.getAsFile());
     if(!file){toast("No picture on the clipboard. Copy an image first, then paste.");return;}
-    const all=[...el.querySelectorAll(".pz")];const nx=all[all.indexOf(z)+1];nextPz=nx?nx.dataset.kind+"|"+nx.dataset.key:null;
+    const all=[...el.querySelectorAll(".pz")];const nx=all[all.indexOf(z)+1];nextPz=nx&&!z.dataset.kind.startsWith("shared:")?nx.dataset.kind+"|"+nx.dataset.key:null;
     takeImage(z.dataset.kind,z.dataset.key,file);});
   el.addEventListener("beforeinput",e=>{if(e.target.closest(".pz")&&e.inputType!=="insertFromPaste")e.preventDefault();});
   el.addEventListener("input",e=>{const z=e.target.closest(".pz");if(z)z.textContent="";});
@@ -2447,7 +2449,8 @@ function wireSettings(){
   const fine=matchMedia("(hover:hover) and (pointer:fine)").matches;
   el.addEventListener("click",async e=>{const z=e.target.closest(".pz");if(!z||!fine||!navigator.clipboard||!navigator.clipboard.read)return;
     try{const items=await navigator.clipboard.read();for(const it of items){const t=it.types.find(x=>x.startsWith("image/"));if(t){const blob=await it.getType(t);
-      const all=[...el.querySelectorAll(".pz")];const nx=all[all.indexOf(z)+1];nextPz=nx?nx.dataset.kind+"|"+nx.dataset.key:null;
+      const all=[...el.querySelectorAll(".pz")];const nx=all[all.indexOf(z)+1];nextPz=nx&&!z.dataset.kind.startsWith("shared:")?nx.dataset.kind+"|"+nx.dataset.key:null;
+      lastClickPaste=Date.now();
       takeImage(z.dataset.kind,z.dataset.key,new File([blob],"pasted."+(t.split("/")[1]||"png"),{type:t}));return;}}
       toast("No picture on the clipboard. Copy an image first.");}catch(_){/* blocked here: Ctrl+V into the focused box still works */}});
   el.addEventListener("dragover",e=>{const c=e.target.closest(".pcell");if(!c||!c.querySelector(".pz"))return;e.preventDefault();el.querySelectorAll(".pcell.dropping").forEach(x=>x!==c&&x.classList.remove("dropping"));c.classList.add("dropping");});
