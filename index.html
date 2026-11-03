@@ -1191,6 +1191,7 @@ const TEMPLATES={"atk-crit":["ATK crit DPS (element goblet)","Main DPS",["atk_"]
  "def-sup":["DEF support","Support",["def_","er"],["def_"],["def_"]]};
 function applyOverrides(){
   Object.keys(CHARS).forEach(k=>{if(!BASE[k])delete CHARS[k];});
+  Object.keys(BASE).forEach(k=>{if(!CHARS[k])CHARS[k]={...BASE[k]};}); // includes characters admins added
   Object.values(owned).forEach(o=>{
     if(o.custom){const t=TEMPLATES[o.custom.tpl]||TEMPLATES["atk-crit"];
       CHARS[o.name]={name:o.name,el:o.custom.el||"",role:t[1],sets:(o.sets&&o.sets.length?o.sets:o.custom.sets)||["Gladiator's Finale"],sands:t[2],goblet:t[3],circlet:t[4],note:"Custom build profile: "+t[0]+".",custom:true};}
@@ -1313,42 +1314,90 @@ function makeCloudAssets(){return {cloud:true,
 const DEFPICS=Object.assign({el:{},sets:{},chars:{}},window.APPRAISER_DEFAULT_PICS||{});
 /* ---------- shared pictures: admins set them, everyone sees them unless they upload their own ---------- */
 let isAdmin=false;const SHARED={};const BUILTIN_PICS=JSON.parse(JSON.stringify(DEFPICS));
-const adm={kind:"chars",key:"",slot:"flower"};
+const adm={missing:false};const SHARED_DATA={char:{},set:{}};
 function sharedUrl(path){return sb.storage.from("shared-pictures").getPublicUrl(path).data.publicUrl;}
-async function loadSharedPics(){const {data,error}=await sb.from("appraiser_shared_pics").select("kind,key,path");if(error||!data)return;
-  data.forEach(r=>{if(!DEFPICS[r.kind])return;DEFPICS[r.kind][r.key]=sharedUrl(r.path);SHARED[r.kind+"|"+r.key]=r.path;});scheduleRender();}
+/* characters and artifact sets an admin added for everyone (newer than this version of the app) */
+function addSharedChar(d){if(BASE[d.name]&&!BASE[d.name].shared)return;const t=TEMPLATES[d.tpl]||TEMPLATES["atk-crit"];
+  BASE[d.name]={name:d.name,el:d.el||"",role:t[1],sets:d.sets&&d.sets.length?d.sets:["Gladiator's Finale"],sands:t[2],goblet:t[3],circlet:t[4],note:"Build profile: "+t[0]+".",shared:true};}
+function addSharedSet(d){if(SETS5.includes(d.name)||SETS4.includes(d.name))return;const L=d.rarity===4?SETS4:SETS5;L.push(d.name);L.sort((a,b)=>a.localeCompare(b));}
+async function loadSharedPics(){
+  const [p,dd]=await Promise.all([sb.from("appraiser_shared_pics").select("kind,key,path"),sb.from("appraiser_shared_data").select("kind,name,data")]);
+  if(!dd.error&&dd.data){dd.data.forEach(r=>{if(SHARED_DATA[r.kind])SHARED_DATA[r.kind][r.name]=r.data;if(r.kind==="char")addSharedChar(r.data);else if(r.kind==="set")addSharedSet(r.data);});applyOverrides();}
+  if(!p.error&&p.data)p.data.forEach(r=>{if(!DEFPICS[r.kind])return;DEFPICS[r.kind][r.key]=sharedUrl(r.path);SHARED[r.kind+"|"+r.key]=r.path;});
+  scheduleRender();if(isAdmin)renderSettings();}
 async function checkAdmin(){try{const {data}=await sb.rpc("appraiser_is_admin");isAdmin=data===true;}catch(_){isAdmin=false;}}
-function admKeys(){return adm.kind==="chars"?CHAR_NAMES.slice().sort((a,b)=>a.localeCompare(b)):adm.kind==="el"?Object.keys(ELNAME):[...new Set([...Object.values(ENKA_SETS),...arts.map(a=>a.set)])].sort();}
-function admFullKey(){const k=adm.key||admKeys()[0]||"";return adm.kind==="sets"?k+"|"+adm.slot:k;}
-function sharedPanel(){if(!isAdmin)return "";const keys=admKeys();if(!keys.includes(adm.key))adm.key=keys[0]||"";const fk=admFullKey(),shown=DEFPICS[adm.kind][fk],own=SHARED[adm.kind+"|"+fk];
-  const opt=(v,l,sel)=>`<option value="${esc(v)}"${sel?" selected":""}>${esc(l)}</option>`;
-  return `<div class="paper"><h2>Shared pictures (admin)</h2><span class="small">Pictures added here show for every user who hasn't uploaded their own. Use this for new characters and artifact sets. Only admin accounts see this page.</span>
-    <div class="row" style="flex-wrap:wrap;gap:10px">
-      <label class="fld">Type<select id="admKind">${opt("chars","Character",adm.kind==="chars")}${opt("sets","Artifact set",adm.kind==="sets")}${opt("el","Element icon",adm.kind==="el")}</select></label>
-      <label class="fld">Name<select id="admKey">${keys.map(k=>opt(k,adm.kind==="el"?ELNAME[k]:k,k===adm.key)).join("")}</select></label>
-      ${adm.kind==="sets"?`<label class="fld">Piece<select id="admSlot">${SLOTS.map(([k,l])=>opt(k,l,k===adm.slot)).join("")}</select></label>`:""}</div>
-    <div class="row" style="gap:14px;align-items:center"><span class="icotile" style="width:84px;height:84px;display:grid;place-items:center">${shown?`<img src="${picSrc(shown)}" alt="" style="width:100%;height:100%;object-fit:contain">`:`<span class="small">None</span>`}</span>
-      <span class="small">${own?"Using a shared picture you uploaded.":shown?"Using the built-in default picture.":"No picture yet."}</span></div>
-    <div class="row"><label class="btn gold" tabindex="0">Upload shared picture<input type="file" accept="image/*" id="admIn" hidden></label>${own?`<button type="button" class="btn ghost" id="admRm">Remove shared picture</button>`:""}</div></div>`;}
-async function uploadShared(file){const kind=adm.kind,key=admFullKey();toast("Uploading…");
+function admCell(kind,key,label,shown,fallback){const own=SHARED[kind+"|"+key];
+  return `<div class="pcell"><div class="pprev">${shown?`<img src="${picSrc(shown)}" alt="" loading="lazy" style="width:64px;height:64px;object-fit:contain">`:fallback}</div><span class="pl">${esc(label)}</span>
+    <span class="small" style="text-align:center">${own?"Shared":shown?"Built-in":"<b>Missing</b>"}</span>
+    <div class="row" style="gap:6px;justify-content:center"><label class="btn ghost sm" tabindex="0">Upload<input type="file" accept="image/*" hidden class="admIn" data-kind="${kind}" data-key="${esc(key)}"></label>${own?`<button type="button" class="btn ghost sm admRm" data-kind="${kind}" data-key="${esc(key)}" aria-label="Remove shared picture for ${esc(label)}">✕</button>`:""}</div></div>`;}
+function sharedPanel(){if(!isAdmin)return "";
+  const miss=adm.missing,keep=(kind,key)=>!miss||!DEFPICS[kind][key];
+  const filter=`<label class="row" style="gap:8px;font-size:.88rem;cursor:pointer"><input type="checkbox" class="admMissingOnly" ${miss?"checked":""}> Show only missing pictures</label>`;
+  const names=Object.keys(BASE).sort((a,b)=>a.localeCompare(b));
+  const chars=names.filter(n=>keep("chars",n)).map(n=>admCell("chars",n,n,DEFPICS.chars[n],`<span class="badge e-${(BASE[n]||{}).el||"x"}" style="--sz:64px">${initials(n)}</span>`)).join("");
+  const missC=names.filter(n=>!DEFPICS.chars[n]).length;
+  const allSets=[...SETS5,...SETS4];let missS=0;
+  const sets=allSets.map(st=>{const cells=SLOTS.filter(([k])=>{const m=!DEFPICS.sets[st+"|"+k];if(m)missS++;return keep("sets",st+"|"+k);}).map(([k,l])=>admCell("sets",st+"|"+k,l,DEFPICS.sets[st+"|"+k],`<span class="icotile${SETS4.includes(st)?" r4":""}">${slotIcon(k)}</span>`)).join("");
+    return cells?`<div class="inset"><h3>${esc(st)}${SHARED_DATA.set[st]?` <span class="small">(added by admin)</span>`:""}</h3><div class="pgrid">${cells}</div></div>`:"";}).join("");
+  const els=Object.keys(ELNAME).filter(e=>keep("el",e)).map(e=>admCell("el",e,ELNAME[e],DEFPICS.el[e],`<span class="badge e-${e}" style="--sz:64px"><span style="width:62%;height:62%;display:grid;place-items:center"><svg viewBox="0 0 24 24" style="fill:#fff">${EL_SVG[e]}</svg></span></span>`)).join("");
+  const opt=(v,l)=>`<option value="${esc(v)}">${esc(l)}</option>`;
+  const sharedChars=Object.keys(SHARED_DATA.char).sort(),sharedSets=Object.keys(SHARED_DATA.set).sort();
+  return `<div class="paper"><h2>Admin: characters</h2><span class="small">Every character in the app. Pictures added here show for every user who hasn't uploaded their own. ${missC} still missing a picture.</span>${filter}
+    <details class="inset"><summary><b>Add a new character for everyone</b></summary><div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
+      <span class="small">For characters released after this version of the app. Everyone can then add them to their roster. Pick the build that fits best; each person can still change the sets on their own copy.</span>
+      <div class="row" style="flex-wrap:wrap;gap:10px"><label class="fld">Name<input type="text" id="admCName" maxlength="40" autocomplete="off"></label>
+        <label class="fld">Element<select id="admCEl">${Object.entries(ELNAME).map(([k,l])=>opt(k,l)).join("")}</select></label>
+        <label class="fld">Build<select id="admCTpl">${Object.entries(TEMPLATES).map(([k,t])=>opt(k,t[0])).join("")}</select></label>
+        <label class="fld">Best set<select id="admCSet">${allSets.map(n=>opt(n,n)).join("")}</select></label></div>
+      <div class="row"><button type="button" class="btn gold" id="admCAdd">Add character</button><span class="small" id="admCMsg"></span></div>
+      ${sharedChars.length?`<span class="small">Added by admins: ${sharedChars.map(n=>`${esc(n)} <button type="button" class="linkbtn admDel" data-kind="char" data-name="${esc(n)}">remove</button>`).join(" · ")}</span>`:""}</div></details>
+    <div class="pgrid">${chars||'<span class="small">Every character has a picture.</span>'}</div></div>
+   <div class="paper"><h2>Admin: artifact sets</h2><span class="small">Every artifact set and piece in the app. ${missS} pieces still missing a picture.</span>${filter}
+    <details class="inset"><summary><b>Add a new artifact set for everyone</b></summary><div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
+      <span class="small">Use the exact name from the game, so imports from Enka match it.</span>
+      <div class="row" style="flex-wrap:wrap;gap:10px"><label class="fld">Set name<input type="text" id="admSName" maxlength="60" autocomplete="off"></label>
+        <label class="fld">Rarity<select id="admSRar">${opt("5","5★")}${opt("4","4★")}</select></label></div>
+      <div class="row"><button type="button" class="btn gold" id="admSAdd">Add set</button><span class="small" id="admSMsg"></span></div>
+      ${sharedSets.length?`<span class="small">Added by admins: ${sharedSets.map(n=>`${esc(n)} <button type="button" class="linkbtn admDel" data-kind="set" data-name="${esc(n)}">remove</button>`).join(" · ")}</span>`:""}</div></details>
+    ${sets||'<span class="small">Every piece has a picture.</span>'}</div>
+   <div class="paper"><h2>Admin: element icons</h2><span class="small">The element icons every user sees unless they upload their own.</span>${filter}<div class="pgrid">${els||'<span class="small">Every element has an icon.</span>'}</div></div>`;}
+async function uploadShared(kind,key,file){toast("Uploading…");
   try{const blob=await shrink(file,kind!=="el");const ext=(blob.type.split("/")[1]||"png").replace("jpeg","jpg");
     const path=kind+"/"+Date.now().toString(36)+Math.random().toString(36).slice(2,8)+"."+ext;
     let r=await sb.storage.from("shared-pictures").upload(path,blob,{contentType:blob.type||"image/png",upsert:false});if(r.error)throw r.error;
     r=await sb.from("appraiser_shared_pics").upsert({kind,key,path,updated_at:new Date().toISOString()});if(r.error){await sb.storage.from("shared-pictures").remove([path]);throw r.error;}
     const old=SHARED[kind+"|"+key];if(old)sb.storage.from("shared-pictures").remove([old]);
-    SHARED[kind+"|"+key]=path;DEFPICS[kind][key]=sharedUrl(path);toast("Shared picture saved for everyone");renderSettings();scheduleRender();}
+    SHARED[kind+"|"+key]=path;DEFPICS[kind][key]=sharedUrl(path);toast("Saved for everyone");renderSettings();scheduleRender();}
   catch(e){toast("Couldn't save: "+((e&&e.message)||e));}}
-async function removeShared(){const kind=adm.kind,key=admFullKey(),old=SHARED[kind+"|"+key];if(!old)return;
+async function removeShared(kind,key){const old=SHARED[kind+"|"+key];if(!old)return;
   const r=await sb.from("appraiser_shared_pics").delete().eq("kind",kind).eq("key",key);if(r.error){toast("Couldn't remove: "+r.error.message);return;}
   sb.storage.from("shared-pictures").remove([old]);delete SHARED[kind+"|"+key];
   if(BUILTIN_PICS[kind][key])DEFPICS[kind][key]=BUILTIN_PICS[kind][key];else delete DEFPICS[kind][key];toast("Shared picture removed");renderSettings();scheduleRender();}
+async function saveSharedData(kind,name,data,msgId){const msg=$(msgId);
+  const r=await sb.from("appraiser_shared_data").upsert({kind,name,data,updated_at:new Date().toISOString()});
+  if(r.error){if(msg)msg.textContent="Couldn't save: "+r.error.message;return;}
+  SHARED_DATA[kind][name]=data;if(kind==="char")addSharedChar(data);else addSharedSet(data);applyOverrides();renderSettings();scheduleRender();toast(name+" added for everyone");}
+async function deleteSharedData(kind,name){if(!confirm(`Remove ${name} for everyone? People who already added it keep their own copy.`))return;
+  const r=await sb.from("appraiser_shared_data").delete().eq("kind",kind).eq("name",name);if(r.error){toast("Couldn't remove: "+r.error.message);return;}
+  delete SHARED_DATA[kind][name];
+  if(kind==="char"){if(BASE[name]&&BASE[name].shared)delete BASE[name];applyOverrides();}
+  else [SETS5,SETS4].forEach(L=>{const i=L.indexOf(name);if(i>=0)L.splice(i,1);});
+  toast(name+" removed");renderSettings();scheduleRender();}
 function wireShared(){const el=$("settingsBody");
   el.addEventListener("change",e=>{const t=e.target;
-    if(t.id==="admKind"){adm.kind=t.value;adm.key="";renderSettings();}
-    else if(t.id==="admKey"){adm.key=t.value;renderSettings();}
-    else if(t.id==="admSlot"){adm.slot=t.value;renderSettings();}
-    else if(t.id==="admIn"&&t.files[0])uploadShared(t.files[0]);});
-  el.addEventListener("click",e=>{if(e.target.id==="admRm")removeShared();});}
+    if(t.classList.contains("admMissingOnly")){adm.missing=t.checked;renderSettings();}
+    else if(t.classList.contains("admIn")&&t.files[0])uploadShared(t.dataset.kind,t.dataset.key,t.files[0]);});
+  el.addEventListener("click",e=>{const t=e.target;
+    if(t.classList.contains("admRm"))removeShared(t.dataset.kind,t.dataset.key);
+    else if(t.classList.contains("admDel"))deleteSharedData(t.dataset.kind,t.dataset.name);
+    else if(t.id==="admCAdd"){const name=($("admCName").value||"").trim().replace(/\s+/g," "),msg=$("admCMsg");
+      if(!name){msg.textContent="Type the character's name.";return;}
+      if(BASE[name]&&!BASE[name].shared){msg.textContent=name+" is already in the app.";return;}
+      saveSharedData("char",name,{name,el:$("admCEl").value,tpl:$("admCTpl").value,sets:[$("admCSet").value]},"admCMsg");}
+    else if(t.id==="admSAdd"){const name=($("admSName").value||"").trim().replace(/\s+/g," "),msg=$("admSMsg");
+      if(!name){msg.textContent="Type the set's name.";return;}
+      if((SETS5.includes(name)||SETS4.includes(name))&&!SHARED_DATA.set[name]){msg.textContent=name+" is already in the app.";return;}
+      saveSharedData("set",name,{name,rarity:+$("admSRar").value},"admSMsg");}});}
 /* ---------- account screen ---------- */
 let authMode="in";
 function authHTML(msg){const redirect=location.origin+location.pathname;
@@ -2296,7 +2345,7 @@ function renderSettings(){
      <label class="row" style="gap:8px;font-size:.88rem;cursor:pointer"><input type="checkbox" id="introSkip" ${(()=>{try{return localStorage.getItem("appraiser.noIntro")==="1";}catch(_){return false;}})()?"checked":""}> Skip the intro on this device</label></div>
    <div class="paper"><h2>Element icons</h2><span class="small">Replace the built-in element symbols with your own images. Transparent PNGs look best.</span><div class="pgrid">${els}</div></div>
    <div class="paper"><h2>Artifact pictures by set</h2><span class="small">One picture covers every piece of that set and slot in your bag. A picture added on a single artifact (with the + button) still takes priority.</span><div class="row"><button class="btn gold" id="fixBlack" type="button">Remove black backgrounds</button><span class="small">For pictures added before transparency was supported: turns the black around each artifact clear again so the gold or purple shows.</span></div>${setRows||'<span class="small">Your bag is empty.</span>'}</div>`+sharedPanel()+exportPanel();
-  pagerize(el,"settings","side",{"Shared pictures (admin)":"Shared pictures","Add many pictures at once":"Bulk add","Character pictures":"Characters","Character banners":"Banners","Intro picture":"Intro","Element icons":"Elements","Artifact pictures by set":"Artifacts","Export and backup":"Export & backup"});
+  pagerize(el,"settings","side",{"Admin: characters":"Admin: characters","Admin: artifact sets":"Admin: sets","Admin: element icons":"Admin: elements","Add many pictures at once":"Bulk add","Character pictures":"Characters","Character banners":"Banners","Intro picture":"Intro","Element icons":"Elements","Artifact pictures by set":"Artifacts","Export and backup":"Export & backup"});
   renderBulk();
   if(nextPz){const [k,...rest]=nextPz.split("|");const key=rest.join("|");const t=[...el.querySelectorAll(".pz")].find(z=>z.dataset.kind===k&&z.dataset.key===key);if(t){t.focus({preventScroll:false});}nextPz=null;}
 }

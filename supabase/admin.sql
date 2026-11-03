@@ -40,6 +40,28 @@ revoke all on public.appraiser_shared_pics from anon;
 grant select on public.appraiser_shared_pics to anon;
 grant select, insert, update, delete on public.appraiser_shared_pics to authenticated;
 
+-- 2b) Characters and artifact sets admins add for everyone (released after this version of the app).
+create table if not exists public.appraiser_shared_data (
+  kind       text        not null check (kind in ('char','set')),
+  name       text        not null check (char_length(name) between 1 and 80),
+  data       jsonb       not null check (pg_column_size(data) < 20000),
+  updated_at timestamptz not null default now(),
+  primary key (kind, name)
+);
+alter table public.appraiser_shared_data enable row level security;
+alter table public.appraiser_shared_data force row level security;
+drop policy if exists "shared data: read"         on public.appraiser_shared_data;
+drop policy if exists "shared data: admin insert" on public.appraiser_shared_data;
+drop policy if exists "shared data: admin update" on public.appraiser_shared_data;
+drop policy if exists "shared data: admin delete" on public.appraiser_shared_data;
+create policy "shared data: read"         on public.appraiser_shared_data for select to anon, authenticated using (true);
+create policy "shared data: admin insert" on public.appraiser_shared_data for insert to authenticated with check ((select public.appraiser_is_admin()));
+create policy "shared data: admin update" on public.appraiser_shared_data for update to authenticated using ((select public.appraiser_is_admin())) with check ((select public.appraiser_is_admin()));
+create policy "shared data: admin delete" on public.appraiser_shared_data for delete to authenticated using ((select public.appraiser_is_admin()));
+revoke all on public.appraiser_shared_data from anon;
+grant select on public.appraiser_shared_data to anon;
+grant select, insert, update, delete on public.appraiser_shared_data to authenticated;
+
 -- 3) Public picture storage for the shared pictures: anyone can view, only admins can upload or delete.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('shared-pictures', 'shared-pictures', true, 5242880, array['image/png','image/jpeg','image/webp','image/gif'])
