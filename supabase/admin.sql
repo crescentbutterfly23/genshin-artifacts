@@ -62,6 +62,49 @@ revoke all on public.appraiser_shared_data from anon;
 grant select on public.appraiser_shared_data to anon;
 grant select, insert, update, delete on public.appraiser_shared_data to authenticated;
 
+-- 2c) Feedback and requests. Signed-in users can send up to 10 a day and read their own; admins read, answer and delete.
+create table if not exists public.appraiser_feedback (
+  id         bigint generated always as identity primary key,
+  user_id    uuid        not null default auth.uid() references auth.users(id) on delete cascade,
+  kind       text        not null check (kind in ('idea','bug','missing','question','other')),
+  message    text        not null check (char_length(message) between 1 and 2000),
+  email      text                 check (email is null or char_length(email) <= 320),
+  status     text        not null default 'new' check (status in ('new','planned','done','declined')),
+  reply      text                 check (reply is null or char_length(reply) <= 2000),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists appraiser_feedback_user on public.appraiser_feedback (user_id, created_at);
+alter table public.appraiser_feedback enable row level security;
+alter table public.appraiser_feedback force row level security;
+
+-- counts today's messages without being limited by row security (used by the insert rule below)
+create or replace function public.appraiser_feedback_today() returns integer
+language sql stable security definer set search_path = '' as $$
+  select count(*)::int from public.appraiser_feedback
+  where user_id = (select auth.uid()) and created_at > now() - interval '1 day';
+$$;
+revoke all on function public.appraiser_feedback_today() from public;
+grant execute on function public.appraiser_feedback_today() to authenticated;
+
+drop policy if exists "feedback: read own or admin" on public.appraiser_feedback;
+drop policy if exists "feedback: send"              on public.appraiser_feedback;
+drop policy if exists "feedback: admin update"      on public.appraiser_feedback;
+drop policy if exists "feedback: admin delete"      on public.appraiser_feedback;
+create policy "feedback: read own or admin" on public.appraiser_feedback for select to authenticated
+  using (user_id = (select auth.uid()) or (select public.appraiser_is_admin()));
+-- new messages only: your own id, status "new", no reply, the email (if any) must be your own, and at most 10 a day
+create policy "feedback: send" on public.appraiser_feedback for insert to authenticated
+  with check (user_id = (select auth.uid()) and status = 'new' and reply is null
+    and (email is null or lower(email) = lower((select auth.jwt()) ->> 'email'))
+    and (select public.appraiser_feedback_today()) < 10);
+create policy "feedback: admin update" on public.appraiser_feedback for update to authenticated
+  using ((select public.appraiser_is_admin())) with check ((select public.appraiser_is_admin()));
+create policy "feedback: admin delete" on public.appraiser_feedback for delete to authenticated
+  using ((select public.appraiser_is_admin()));
+revoke all on public.appraiser_feedback from anon;
+grant select, insert, update, delete on public.appraiser_feedback to authenticated;
+
 -- 3) Public picture storage for the shared pictures: anyone can view, only admins can upload or delete.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('shared-pictures', 'shared-pictures', true, 5242880, array['image/png','image/jpeg','image/webp','image/gif'])
@@ -85,5 +128,5 @@ create policy "shared-pictures: admin delete" on storage.objects for delete to a
 -- 4) Make your account an admin: put the email you sign in with between the quotes, then run this line.
 --    (Sign in to the site once first so the account exists.)
 insert into public.appraiser_admins (user_id)
-select id from auth.users where lower(email) = lower('YOUR-EMAIL-HERE')
+select id from auth.users where lower(email) = lower('crescentbutterfly23@gmail.com')
 on conflict do nothing;

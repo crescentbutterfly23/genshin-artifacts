@@ -776,6 +776,10 @@ body.auth-on{overflow:hidden}
 /* during the opening, the sign-in card sits on the title screen instead of covering it */
 body.intro-on #auth{z-index:210;background:none;-webkit-backdrop-filter:none;backdrop-filter:none}
 body.intro-on.auth-on #intro .go{visibility:hidden}
+#intro .credit{position:absolute;left:0;right:0;bottom:calc(10px + env(safe-area-inset-bottom,0px));margin:0;padding:0 16px;text-align:center;font:600 .66rem var(--font);letter-spacing:.04em;color:rgba(241,222,176,.62);text-shadow:0 1px 6px rgba(8,10,32,.9);pointer-events:none}
+#intro .ldcredit{color:#9C927E;text-shadow:none}
+.fbitem{display:flex;flex-direction:column;gap:6px}.fbst{font-weight:900}.fbst-new{color:var(--gold)}.fbst-done{color:var(--ok)}
+.credits{margin:28px auto 8px;max-width:760px;padding:0 16px;text-align:center;font-size:.72rem;line-height:1.5;color:rgba(236,229,216,.6)}
 body.intro-on.auth-on #intro .core{opacity:0;transition:opacity 400ms ease}
 .auth-card{width:min(420px,100%);max-height:calc(100vh - 40px);overflow:auto;background:linear-gradient(180deg,#2B3156,#1E2343);color:#ECE5D8;border-radius:18px;padding:26px 22px 20px;box-shadow:0 0 0 1px rgba(211,188,142,.55),0 24px 60px rgba(0,0,0,.5);display:flex;flex-direction:column;gap:14px;animation:evIn 320ms var(--ease-out) both}
 .auth-card h2{margin:0;text-align:center;font:400 1.6rem var(--display);color:#F6EEDC}
@@ -806,9 +810,10 @@ body.intro-on.auth-on #intro .core{opacity:0;transition:opacity 400ms ease}
 <div id="intro" role="dialog" aria-label="Artifact Appraiser" aria-modal="true">
   <div class="nt"><div class="kv" aria-hidden="true"><i></i></div><div class="shade" aria-hidden="true"></div><div class="sky" aria-hidden="true"></div><div class="par" aria-hidden="true"><div class="orbit"><i></i><i></i><i></i></div></div>
     <div class="core"><div class="rays" aria-hidden="true"></div><div class="logo" aria-hidden="true"><span class="halo"></span><span class="st"></span></div><h1>Artifact Appraiser</h1><div class="sub">Genshin artifact tracker</div></div>
+    <p class="credit">Fan-made. Not affiliated with HoYoverse. Game art &copy; HoYoverse; fan art belongs to its artists.</p>
     <button type="button" class="go" id="introGo"><span>Click to continue</span></button>
     <div class="flash" aria-hidden="true"></div></div>
-  <div class="ld" aria-live="polite"><div class="ldin"><div class="els" aria-hidden="true"></div><div class="ldbar"><i></i></div><div class="ldtx">Loading</div></div></div>
+  <div class="ld" aria-live="polite"><div class="ldin"><div class="els" aria-hidden="true"></div><div class="ldbar"><i></i></div><div class="ldtx">Loading</div></div><p class="credit ldcredit">Fan-made. Not affiliated with HoYoverse. Game art &copy; HoYoverse; fan art belongs to its artists.</p></div>
 </div>
 <script>
 (function(){const I=document.getElementById("intro");if(!I)return;
@@ -867,6 +872,7 @@ body.intro-on.auth-on #intro .core{opacity:0;transition:opacity 400ms ease}
     <button role="tab" data-tab="appraise" aria-selected="false" hidden>Appraise</button>
     <button role="tab" data-tab="bag" aria-selected="false">My Bag<span class="count" id="bagCount"></span></button>
     <button role="tab" data-tab="how" aria-selected="false">How it grades</button>
+    <button role="tab" data-tab="help" aria-selected="false">Help</button>
     <button role="tab" data-tab="settings" aria-selected="false">Settings</button>
   </nav>
   <nav class="secnav" id="secnav" aria-label="Sections on this page" hidden></nav>
@@ -970,6 +976,7 @@ body.intro-on.auth-on #intro .core{opacity:0;transition:opacity 400ms ease}
 
 <!-- HOW -->
 <section class="panel" id="tab-settings" hidden><div id="settingsBody" style="display:flex;flex-direction:column;gap:16px"></div></section>
+<section class="panel" id="tab-help" hidden><div id="helpBody" style="display:flex;flex-direction:column;gap:16px"></div></section>
 
 <section class="panel" id="tab-how" hidden>
   <div class="howgrid">
@@ -1011,7 +1018,7 @@ body.intro-on.auth-on #intro .core{opacity:0;transition:opacity 400ms ease}
     </div>
   </div>
 </section>
-
+<footer class="credits" role="contentinfo">Artifact Appraiser is a fan-made tool and is not affiliated with or endorsed by HoYoverse. Genshin Impact, its characters, artwork and other game assets belong to HoYoverse. Fan art belongs to its original artists. We didn&#8217;t create these images; they are used here for non-commercial, informational purposes only.</footer>
 </main>
 <button type="button" class="fab" id="fabAdd" aria-label="Appraise a new artifact" title="Appraise a new artifact"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
 
@@ -1329,6 +1336,7 @@ async function checkAdmin(){try{const {data}=await sb.rpc("appraiser_is_admin");
 function admCell(kind,key,label,shown,fallback){const own=SHARED[kind+"|"+key];
   return `<div class="pcell"><div class="pprev">${shown?`<img src="${picSrc(shown)}" alt="" loading="lazy" style="width:64px;height:64px;object-fit:contain">`:fallback}</div><span class="pl">${esc(label)}</span>
     <span class="small" style="text-align:center">${own?"Shared":shown?"Built-in":"<b>Missing</b>"}</span>
+    <div class="pz pbox" contenteditable="true" role="textbox" inputmode="none" spellcheck="false" aria-label="Paste a shared picture for ${esc(label)}" data-kind="shared:${kind}" data-key="${esc(key)}"></div>
     <div class="row" style="gap:6px;justify-content:center"><label class="btn ghost sm" tabindex="0">Upload<input type="file" accept="image/*" hidden class="admIn" data-kind="${kind}" data-key="${esc(key)}"></label>${own?`<button type="button" class="btn ghost sm admRm" data-kind="${kind}" data-key="${esc(key)}" aria-label="Remove shared picture for ${esc(label)}">✕</button>`:""}</div></div>`;}
 function sharedPanel(){if(!isAdmin)return "";
   const miss=adm.missing,keep=(kind,key)=>!miss||!DEFPICS[kind][key];
@@ -1398,6 +1406,72 @@ function wireShared(){const el=$("settingsBody");
       if(!name){msg.textContent="Type the set's name.";return;}
       if((SETS5.includes(name)||SETS4.includes(name))&&!SHARED_DATA.set[name]){msg.textContent=name+" is already in the app.";return;}
       saveSharedData("set",name,{name,rarity:+$("admSRar").value},"admSMsg");}});}
+/* ---------- Help tab: FAQ, feedback and requests, what's new, credits ---------- */
+const FB_KINDS={idea:"Feature request",bug:"Bug report",missing:"Missing character, set or picture",question:"Question",other:"Other"};
+const FB_STATUS={new:"Received",planned:"Planned",done:"Done",declined:"Not planned"};
+const FAQ=[
+  ["Is this an official HoYoverse site?","No. Artifact Appraiser is a fan-made tool. It isn't affiliated with or endorsed by HoYoverse, and the game art and fan art shown belong to their owners."],
+  ["How are artifacts graded?","Each artifact is scored on how useful its substats are for the characters who want that set and main stat. The <b>How it grades</b> tab explains the details."],
+  ["Do I need an account?","No. Without one, everything is saved in this browser only. With an account, your artifacts, characters and pictures sync to every device you sign in on."],
+  ["Who can see my data?","Only you. Each account can only read its own artifacts, characters and pictures; nobody else can, including other users of the site."],
+  ["How do I import my artifacts from the game?","Use <b>Import from Enka</b> on the Training Guide with your in-game UID. Enka only sees the characters in your in-game showcase, so put the ones you want there first."],
+  ["How do I move my data to another account?","Go to <b>Settings → Export &amp; backup</b>, download the backup file, sign in to the other account, then use <b>Restore from backup</b>."],
+  ["A new character or artifact set is missing. What do I do?","Send a request on the <b>Send feedback</b> page. New characters and sets are added for everyone as soon as possible after they release."],
+  ["Can I use my own pictures?","Yes. Anything you upload under <b>Settings</b> replaces the default picture for your account only."],
+  ["Why does the site ask for motion access on my phone?","That powers the tilt effect on the title screen. Saying no is fine; everything else works the same."]];
+const WHATS_NEW=[
+  ["November 2026",["Sign in with email, Google or Discord, and sync across devices","New title screen with sign-in and a tilt effect on phones and tablets","Default pictures for characters, artifact sets and elements","Feedback, requests and this Help tab","Link previews when you share the site"]]];
+let fbMine=null,fbAll=null;const fbAdm={status:"open"};
+async function loadMyFeedback(){if(!sb||!sbUser){fbMine=[];return;}const {data,error}=await sb.from("appraiser_feedback").select("id,kind,message,status,reply,created_at").eq("user_id",sbUser.id).order("created_at",{ascending:false});fbMine=error?[]:data;}
+async function loadAllFeedback(){if(!isAdmin){fbAll=[];return;}const {data,error}=await sb.from("appraiser_feedback").select("id,kind,message,status,reply,email,created_at").order("created_at",{ascending:false}).limit(500);fbAll=error?[]:data;}
+function fbDate(d){try{return new Date(d).toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"});}catch(_){return "";}}
+function fbItem(f,admin){return `<div class="inset fbitem"><div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${esc(FB_KINDS[f.kind]||f.kind)}</b><span class="small">${fbDate(f.created_at)} · <span class="fbst fbst-${esc(f.status)}">${esc(FB_STATUS[f.status]||f.status)}</span></span></div>
+  <p style="margin:6px 0;white-space:pre-wrap;overflow-wrap:anywhere">${esc(f.message)}</p>
+  ${admin?`${f.email?`<span class="small">Reply wanted: ${esc(f.email)}</span>`:""}
+    <div class="row" style="flex-wrap:wrap;gap:8px;align-items:flex-end"><label class="fld">Status<select class="fbSt" data-id="${f.id}">${Object.entries(FB_STATUS).map(([k,l])=>`<option value="${k}"${k===f.status?" selected":""}>${l}</option>`).join("")}</select></label>
+      <label class="fld" style="flex:1;min-width:200px">Reply (the sender sees this)<textarea class="fbReply" data-id="${f.id}" rows="2" maxlength="2000">${esc(f.reply||"")}</textarea></label>
+      <button type="button" class="btn gold sm fbSave" data-id="${f.id}">Save</button><button type="button" class="btn ghost sm fbDel" data-id="${f.id}">Delete</button></div>`
+  :f.reply?`<div class="okmsg"><b>Reply:</b> ${esc(f.reply)}</div>`:""}</div>`;}
+function renderHelp(){const el=$("helpBody");if(!el)return;
+  const signedIn=!!(CLOUD_ON&&sbUser);
+  if(signedIn&&fbMine===null){fbMine=[];loadMyFeedback().then(renderHelp);}
+  const form=!CLOUD_ON?`<span class="small">Feedback needs the online version of the site.</span>`:!signedIn?`<span class="small">Sign in to send feedback, so we can tell you when your request is done.</span><div class="row"><button type="button" class="btn gold" id="fbSignIn">Sign in or create an account</button></div>`:
+   `<form id="fbForm" style="display:flex;flex-direction:column;gap:10px">
+      <label class="fld">What is it about?<select id="fbKind">${Object.entries(FB_KINDS).map(([k,l])=>`<option value="${k}">${l}</option>`).join("")}</select></label>
+      <label class="fld">Message<textarea id="fbMsg" rows="5" maxlength="2000" required placeholder="What would you like added, or what went wrong? For a bug, say what you tapped and what happened."></textarea></label>
+      <label class="row" style="gap:8px;font-size:.88rem;cursor:pointer"><input type="checkbox" id="fbMail"> You may email me at ${esc(sbUser.email||"my account email")} about this</label>
+      <div class="row"><button type="submit" class="btn gold" id="fbSend">Send</button><span class="small" id="fbMsgOut" role="status"></span></div></form>`;
+  el.innerHTML=`<div class="paper"><h2>Questions and answers</h2>${FAQ.map(([q,a])=>`<details class="inset"><summary><b>${esc(q)}</b></summary><p style="margin:8px 0 0">${a}</p></details>`).join("")}
+      <span class="small">Didn't find your answer? Ask on the <b>Send feedback</b> page.</span></div>
+    <div class="paper"><h2>Send feedback</h2><span class="small">Ideas, bug reports and requests for new characters, sets or pictures. Every message is read.</span>${form}</div>
+    ${signedIn?`<div class="paper"><h2>My requests</h2><span class="small">What you've sent and where it's at.</span>${(fbMine||[]).map(f=>fbItem(f,false)).join("")||'<span class="small">Nothing sent yet.</span>'}</div>`:""}
+    <div class="paper"><h2>What's new</h2>${WHATS_NEW.map(([when,list])=>`<div class="inset"><h3>${esc(when)}</h3><ul style="margin:6px 0 0;padding-left:20px">${list.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`).join("")}</div>
+    <div class="paper"><h2>About and credits</h2><p style="margin:0">Artifact Appraiser is a free, fan-made tool for planning Genshin Impact artifacts. It is not affiliated with or endorsed by HoYoverse.</p>
+      <p style="margin:0">Genshin Impact, its characters, artwork and other game assets belong to HoYoverse. Fan art belongs to its original artists. We didn't create these images; they are used for non-commercial, informational purposes only. If you made an image shown here and want it credited or removed, send a message on the <b>Send feedback</b> page.</p></div>`;
+  pagerize(el,"help","side",{"Questions and answers":"Q&A","Send feedback":"Send feedback","My requests":"My requests","What's new":"What's new","About and credits":"About & credits"});}
+function feedbackInbox(){if(!isAdmin)return "";if(fbAll===null){fbAll=[];loadAllFeedback().then(()=>{if(document.body.dataset.tab==="settings")renderSettings();});}
+  const open=fbAll.filter(f=>f.status==="new"||f.status==="planned"),list=fbAdm.status==="open"?open:fbAll;
+  return `<div class="paper"><h2>Admin: feedback inbox</h2><span class="small">${open.length} open of ${fbAll.length}. Set a status and reply; the sender sees both under <b>Help → My requests</b>.</span>
+    <div class="row" style="gap:8px"><button type="button" class="btn ${fbAdm.status==="open"?"gold":"ghost"} sm fbFilter" data-v="open">Open</button><button type="button" class="btn ${fbAdm.status==="all"?"gold":"ghost"} sm fbFilter" data-v="all">All</button><button type="button" class="btn ghost sm" id="fbRefresh">Refresh</button></div>
+    ${list.map(f=>fbItem(f,true)).join("")||'<span class="small">Nothing here.</span>'}</div>`;}
+function wireHelp(){const el=$("helpBody");
+  el.addEventListener("click",e=>{if(e.target.id==="fbSignIn"){try{localStorage.removeItem("appraiser.guest");}catch(_){}location.reload();}});
+  el.addEventListener("submit",async e=>{if(e.target.id!=="fbForm")return;e.preventDefault();const out=$("fbMsgOut"),btn=$("fbSend"),msg=($("fbMsg").value||"").trim();
+    if(msg.length<3){out.textContent="Write a little more first.";return;}
+    btn.disabled=true;out.textContent="Sending…";
+    const r=await sb.from("appraiser_feedback").insert({user_id:sbUser.id,kind:$("fbKind").value,message:msg,email:$("fbMail").checked?(sbUser.email||null):null});
+    btn.disabled=false;
+    if(r.error){out.textContent=/row-level security/i.test(r.error.message)?"You've sent a lot today. Please try again tomorrow.":"Couldn't send: "+r.error.message;return;}
+    toast("Thanks! Your message was sent.");await loadMyFeedback();renderHelp();});
+  const st=$("settingsBody");
+  st.addEventListener("click",async e=>{const t=e.target;
+    if(t.classList.contains("fbFilter")){fbAdm.status=t.dataset.v;renderSettings();}
+    else if(t.id==="fbRefresh"){await loadAllFeedback();renderSettings();}
+    else if(t.classList.contains("fbSave")){const id=+t.dataset.id;const status=st.querySelector(`.fbSt[data-id="${id}"]`).value,reply=st.querySelector(`.fbReply[data-id="${id}"]`).value.trim()||null;
+      const r=await sb.from("appraiser_feedback").update({status,reply,updated_at:new Date().toISOString()}).eq("id",id);if(r.error){toast("Couldn't save: "+r.error.message);return;}
+      const f=fbAll.find(x=>x.id===id);if(f){f.status=status;f.reply=reply;}toast("Saved");renderSettings();}
+    else if(t.classList.contains("fbDel")){const id=+t.dataset.id;if(!confirm("Delete this message?"))return;
+      const r=await sb.from("appraiser_feedback").delete().eq("id",id);if(r.error){toast("Couldn't delete: "+r.error.message);return;}fbAll=fbAll.filter(x=>x.id!==id);renderSettings();}});}
 /* ---------- account screen ---------- */
 let authMode="in";
 function authHTML(msg){const redirect=location.origin+location.pathname;
@@ -2344,8 +2418,8 @@ function renderSettings(){
      <div class="pgrid introgrid">${cell("intro","intro","Intro background",imgs.intro,`<span class="intprev">${imgs.intro?`<img src="${picSrc(imgs.intro)}" alt="">`:`<span class="small">Default picture</span>`}</span>`)}</div>
      <label class="row" style="gap:8px;font-size:.88rem;cursor:pointer"><input type="checkbox" id="introSkip" ${(()=>{try{return localStorage.getItem("appraiser.noIntro")==="1";}catch(_){return false;}})()?"checked":""}> Skip the intro on this device</label></div>
    <div class="paper"><h2>Element icons</h2><span class="small">Replace the built-in element symbols with your own images. Transparent PNGs look best.</span><div class="pgrid">${els}</div></div>
-   <div class="paper"><h2>Artifact pictures by set</h2><span class="small">One picture covers every piece of that set and slot in your bag. A picture added on a single artifact (with the + button) still takes priority.</span><div class="row"><button class="btn gold" id="fixBlack" type="button">Remove black backgrounds</button><span class="small">For pictures added before transparency was supported: turns the black around each artifact clear again so the gold or purple shows.</span></div>${setRows||'<span class="small">Your bag is empty.</span>'}</div>`+sharedPanel()+exportPanel();
-  pagerize(el,"settings","side",{"Admin: characters":"Admin: characters","Admin: artifact sets":"Admin: sets","Admin: element icons":"Admin: elements","Add many pictures at once":"Bulk add","Character pictures":"Characters","Character banners":"Banners","Intro picture":"Intro","Element icons":"Elements","Artifact pictures by set":"Artifacts","Export and backup":"Export & backup"});
+   <div class="paper"><h2>Artifact pictures by set</h2><span class="small">One picture covers every piece of that set and slot in your bag. A picture added on a single artifact (with the + button) still takes priority.</span><div class="row"><button class="btn gold" id="fixBlack" type="button">Remove black backgrounds</button><span class="small">For pictures added before transparency was supported: turns the black around each artifact clear again so the gold or purple shows.</span></div>${setRows||'<span class="small">Your bag is empty.</span>'}</div>`+sharedPanel()+feedbackInbox()+exportPanel();
+  pagerize(el,"settings","side",{"Admin: characters":"Admin: characters","Admin: artifact sets":"Admin: sets","Admin: element icons":"Admin: elements","Admin: feedback inbox":"Admin: feedback","Add many pictures at once":"Bulk add","Character pictures":"Characters","Character banners":"Banners","Intro picture":"Intro","Element icons":"Elements","Artifact pictures by set":"Artifacts","Export and backup":"Export & backup"});
   renderBulk();
   if(nextPz){const [k,...rest]=nextPz.split("|");const key=rest.join("|");const t=[...el.querySelectorAll(".pz")].find(z=>z.dataset.kind===k&&z.dataset.key===key);if(t){t.focus({preventScroll:false});}nextPz=null;}
 }
@@ -2385,6 +2459,7 @@ function wireSettings(){
   el.addEventListener("pointerdown",pre);
 }
 async function takeImage(kind,key,file){
+    if(kind.startsWith("shared:"))return uploadShared(kind.slice(7),key,file);
     toast("Adding picture…");
     try{const id=await uploadPic(file,kind==="banner"||kind==="intro"?"banner":kind!=="el");
       if(kind==="intro"){const old=imgs.intro;await saveImgs({...JSON.parse(JSON.stringify(imgs)),intro:id});if(old)try{await assets.delete(old);}catch(_){}}
@@ -3543,7 +3618,7 @@ function wireShots(){
 
 /* ---------- wiring ---------- */
 let optStale=false,renderTimer=null;const staleTabs=new Set();
-function renderTab(t){if(t==="appraise")renderForm();else if(t==="bag")renderBag();else if(t==="train")renderTrain();else if(t==="teams")renderTeams();else if(t==="settings")renderSettings();else if(t==="best")renderOptimizer();}
+function renderTab(t){if(t==="appraise")renderForm();else if(t==="bag")renderBag();else if(t==="train")renderTrain();else if(t==="teams")renderTeams();else if(t==="settings")renderSettings();else if(t==="help")renderHelp();else if(t==="best")renderOptimizer();}
 function renderAll(){applyOverrides();if(optCache&&Date.now()>optSelfEditUntil)optStale=true;
   const cur=currentTab()||"train";["appraise","bag","train","teams","settings","best"].forEach(t=>{if(t===cur)renderTab(t);else staleTabs.add(t);});
   if(cur!=="appraise"){staleTabs.delete("appraise");renderForm();}   // keeps the Save status and form current
@@ -3552,7 +3627,7 @@ function scheduleRender(){clearTimeout(renderTimer);renderTimer=setTimeout(rende
 function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>el.hidden=true,2200);}
 document.querySelectorAll("nav.tabs button").forEach(b=>b.addEventListener("click",()=>showTab(b.dataset.tab)));
 function showTab(t){document.body.dataset.tab=t;document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.tab===t)));
-  ["train","teams","best","appraise","bag","how","settings"].forEach(x=>$("tab-"+x).hidden=x!==t); if(staleTabs.has(t)||t==="best"){staleTabs.delete(t);renderTab(t);} buildSecNav(); window.scrollTo(0,0);}
+  ["train","teams","best","appraise","bag","how","settings","help"].forEach(x=>$("tab-"+x).hidden=x!==t); if(staleTabs.has(t)||t==="best"||t==="help"){staleTabs.delete(t);renderTab(t);} buildSecNav(); window.scrollTo(0,0);}
 fillSetSelect();
 $("fSet").addEventListener("change",e=>{form.set=e.target.value;if(SETS4.includes(form.set))form.rarity=4;renderForm();});
 $("fRarity").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;form.rarity=+b.dataset.v;renderForm();});
@@ -3642,7 +3717,7 @@ $("pasteBtn").addEventListener("click",async()=>{
 });
 function setHdr(){const h=document.querySelector("header.top");if(h)document.documentElement.style.setProperty("--hdr",h.offsetHeight+"px");}
 setHdr();window.addEventListener("resize",setHdr);try{new ResizeObserver(setHdr).observe(document.querySelector("header.top"));}catch(e){}if(document.fonts)document.fonts.ready.then(setHdr);
-wireSettings(); wireSettingsRm(); wireShared(); wireBulk(); wireExport(); wireMany(); wireShots(); wireOptimizer(); wireQuick(); wireSecNav(); renderAll(); (async()=>{await initStore();await initAssets();})();
+wireSettings(); wireSettingsRm(); wireShared(); wireHelp(); wireBulk(); wireExport(); wireMany(); wireShots(); wireOptimizer(); wireQuick(); wireSecNav(); renderAll(); (async()=>{await initStore();await initAssets();})();
 
 </script>
 

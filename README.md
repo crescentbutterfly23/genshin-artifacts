@@ -7,6 +7,10 @@ It runs as a static site on GitHub Pages. Sign-in and cloud backups are handled 
 - **Without an account:** everything is saved in that browser only. You can copy it into an account later from **Settings → Account**.
 - **Backups:** **Settings → Export & backup** downloads a single file that includes every picture. You can restore it into any account.
 
+## Disclaimer
+
+Artifact Appraiser is a fan-made tool and is not affiliated with or endorsed by HoYoverse. Genshin Impact, its characters, artwork and other game assets belong to HoYoverse. Fan art belongs to its original artists. We didn't create these images; they are used for non-commercial, informational purposes only. If you own an image and want it credited or removed, please open an issue.
+
 ## Files
 
 | File | What it is |
