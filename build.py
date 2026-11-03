@@ -17,6 +17,9 @@ head=f'''<!doctype html>
 <meta name="description" content="Grade Genshin Impact artifacts, plan swaps and track your roster.">
 <meta name="theme-color" content="#1B2252">
 <script src="config.js"></script>
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="icon" href="icons/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 '''
 body=src.replace('<meta name="claude:viewport-fit-sides" content="cover">\n','')
 i=body.index("<style>");j=body.index("</style>")+len("</style>")
