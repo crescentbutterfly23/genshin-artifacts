@@ -7,7 +7,18 @@
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="description" content="Grade Genshin Impact artifacts, plan swaps and track your roster.">
 <meta name="theme-color" content="#1B2252">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Artifact Appraiser">
+<meta property="og:title" content="Artifact Appraiser">
+<meta property="og:description" content="Grade Genshin Impact artifacts, plan swaps and track your roster.">
+<meta property="og:url" content="https://crescentbutterfly23.github.io/genshin-artifacts/">
+<meta property="og:image" content="https://crescentbutterfly23.github.io/genshin-artifacts/icons/preview.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Artifact Appraiser title screen">
+<meta name="twitter:card" content="summary_large_image">
 <script src="config.js"></script>
+<script src="defaults/pictures.js"></script>
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="icon" href="icons/favicon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -1019,7 +1030,7 @@ body.intro-on.auth-on #intro .core{opacity:0;transition:opacity 400ms ease}
 <script id="app">
 const PRISTINE_HTML=document.documentElement.outerHTML;
 const LOCALPIC=new Map();
-function picSrc(id){id=String(id||"");return id.startsWith("data:")?id:id.startsWith("sb:")?(SBPIC.get(id)||""):id.startsWith("local:")?(LOCALPIC.get(id)||""):"/_blob/"+encodeURIComponent(id);}
+function picSrc(id){id=String(id||"");return id.startsWith("data:")||id.startsWith("defaults/")||id.startsWith("https://")?id:id.startsWith("sb:")?(SBPIC.get(id)||""):id.startsWith("local:")?(LOCALPIC.get(id)||""):"/_blob/"+encodeURIComponent(id);}
 /* ---------- static data ---------- */
 const SLOTS=[["flower","Flower"],["plume","Plume"],["sands","Sands"],["goblet","Goblet"],["circlet","Circlet"]];
 const STAT={hp:"HP",atk:"ATK",def:"DEF",hp_:"HP%",atk_:"ATK%",def_:"DEF%",em:"Elemental Mastery",er:"Energy Recharge",cr:"CRIT Rate",cd:"CRIT DMG",heal:"Healing Bonus",
@@ -1298,6 +1309,46 @@ function makeCloudAssets(){return {cloud:true,
     const {error}=await sb.storage.from("pictures").upload(path,blob,{contentType:blob.type||"image/png",upsert:false});if(error)throw error;
     SBPIC.set("sb:"+path,URL.createObjectURL(blob));return {id:"sb:"+path};},
   async delete(id){id=String(id||"");if(!id.startsWith("sb:"))return {deleted:false};const {error}=await sb.storage.from("pictures").remove([id.slice(3)]);SBPIC.delete(id);return {deleted:!error};}};}
+/* shared default pictures (defaults/pictures.js); anything a person uploads takes priority */
+const DEFPICS=Object.assign({el:{},sets:{},chars:{}},window.APPRAISER_DEFAULT_PICS||{});
+/* ---------- shared pictures: admins set them, everyone sees them unless they upload their own ---------- */
+let isAdmin=false;const SHARED={};const BUILTIN_PICS=JSON.parse(JSON.stringify(DEFPICS));
+const adm={kind:"chars",key:"",slot:"flower"};
+function sharedUrl(path){return sb.storage.from("shared-pictures").getPublicUrl(path).data.publicUrl;}
+async function loadSharedPics(){const {data,error}=await sb.from("appraiser_shared_pics").select("kind,key,path");if(error||!data)return;
+  data.forEach(r=>{if(!DEFPICS[r.kind])return;DEFPICS[r.kind][r.key]=sharedUrl(r.path);SHARED[r.kind+"|"+r.key]=r.path;});scheduleRender();}
+async function checkAdmin(){try{const {data}=await sb.rpc("appraiser_is_admin");isAdmin=data===true;}catch(_){isAdmin=false;}}
+function admKeys(){return adm.kind==="chars"?CHAR_NAMES.slice().sort((a,b)=>a.localeCompare(b)):adm.kind==="el"?Object.keys(ELNAME):[...new Set([...Object.values(ENKA_SETS),...arts.map(a=>a.set)])].sort();}
+function admFullKey(){const k=adm.key||admKeys()[0]||"";return adm.kind==="sets"?k+"|"+adm.slot:k;}
+function sharedPanel(){if(!isAdmin)return "";const keys=admKeys();if(!keys.includes(adm.key))adm.key=keys[0]||"";const fk=admFullKey(),shown=DEFPICS[adm.kind][fk],own=SHARED[adm.kind+"|"+fk];
+  const opt=(v,l,sel)=>`<option value="${esc(v)}"${sel?" selected":""}>${esc(l)}</option>`;
+  return `<div class="paper"><h2>Shared pictures (admin)</h2><span class="small">Pictures added here show for every user who hasn't uploaded their own. Use this for new characters and artifact sets. Only admin accounts see this page.</span>
+    <div class="row" style="flex-wrap:wrap;gap:10px">
+      <label class="fld">Type<select id="admKind">${opt("chars","Character",adm.kind==="chars")}${opt("sets","Artifact set",adm.kind==="sets")}${opt("el","Element icon",adm.kind==="el")}</select></label>
+      <label class="fld">Name<select id="admKey">${keys.map(k=>opt(k,adm.kind==="el"?ELNAME[k]:k,k===adm.key)).join("")}</select></label>
+      ${adm.kind==="sets"?`<label class="fld">Piece<select id="admSlot">${SLOTS.map(([k,l])=>opt(k,l,k===adm.slot)).join("")}</select></label>`:""}</div>
+    <div class="row" style="gap:14px;align-items:center"><span class="icotile" style="width:84px;height:84px;display:grid;place-items:center">${shown?`<img src="${picSrc(shown)}" alt="" style="width:100%;height:100%;object-fit:contain">`:`<span class="small">None</span>`}</span>
+      <span class="small">${own?"Using a shared picture you uploaded.":shown?"Using the built-in default picture.":"No picture yet."}</span></div>
+    <div class="row"><label class="btn gold" tabindex="0">Upload shared picture<input type="file" accept="image/*" id="admIn" hidden></label>${own?`<button type="button" class="btn ghost" id="admRm">Remove shared picture</button>`:""}</div></div>`;}
+async function uploadShared(file){const kind=adm.kind,key=admFullKey();toast("Uploading…");
+  try{const blob=await shrink(file,kind!=="el");const ext=(blob.type.split("/")[1]||"png").replace("jpeg","jpg");
+    const path=kind+"/"+Date.now().toString(36)+Math.random().toString(36).slice(2,8)+"."+ext;
+    let r=await sb.storage.from("shared-pictures").upload(path,blob,{contentType:blob.type||"image/png",upsert:false});if(r.error)throw r.error;
+    r=await sb.from("appraiser_shared_pics").upsert({kind,key,path,updated_at:new Date().toISOString()});if(r.error){await sb.storage.from("shared-pictures").remove([path]);throw r.error;}
+    const old=SHARED[kind+"|"+key];if(old)sb.storage.from("shared-pictures").remove([old]);
+    SHARED[kind+"|"+key]=path;DEFPICS[kind][key]=sharedUrl(path);toast("Shared picture saved for everyone");renderSettings();scheduleRender();}
+  catch(e){toast("Couldn't save: "+((e&&e.message)||e));}}
+async function removeShared(){const kind=adm.kind,key=admFullKey(),old=SHARED[kind+"|"+key];if(!old)return;
+  const r=await sb.from("appraiser_shared_pics").delete().eq("kind",kind).eq("key",key);if(r.error){toast("Couldn't remove: "+r.error.message);return;}
+  sb.storage.from("shared-pictures").remove([old]);delete SHARED[kind+"|"+key];
+  if(BUILTIN_PICS[kind][key])DEFPICS[kind][key]=BUILTIN_PICS[kind][key];else delete DEFPICS[kind][key];toast("Shared picture removed");renderSettings();scheduleRender();}
+function wireShared(){const el=$("settingsBody");
+  el.addEventListener("change",e=>{const t=e.target;
+    if(t.id==="admKind"){adm.kind=t.value;adm.key="";renderSettings();}
+    else if(t.id==="admKey"){adm.key=t.value;renderSettings();}
+    else if(t.id==="admSlot"){adm.slot=t.value;renderSettings();}
+    else if(t.id==="admIn"&&t.files[0])uploadShared(t.files[0]);});
+  el.addEventListener("click",e=>{if(e.target.id==="admRm")removeShared();});}
 /* ---------- account screen ---------- */
 let authMode="in";
 function authHTML(msg){const redirect=location.origin+location.pathname;
@@ -1379,7 +1430,7 @@ function accountPanel(){if(!CLOUD_ON)return "";
   const prov=(sbUser.app_metadata&&sbUser.app_metadata.provider)||"email";
   return `<div class="paper" data-pg="Account"><h2>Account</h2>
     <div class="acct"><span class="acct-av">${esc((sbUser.email||"?")[0].toUpperCase())}</span><div><b>${esc(sbUser.email||"Signed in")}</b><span class="small">Signed in with ${esc(prov[0].toUpperCase()+prov.slice(1))} · your data and pictures sync to every device you sign in on</span></div></div>
-    <div class="row"><button class="btn ghost" id="acctMove" type="button">Copy this device's guest data into my account</button>${prov==="email"?`<button class="btn ghost" id="acctPw" type="button">Change password</button>`:""}<button class="btn danger" id="acctOut" type="button">Sign out</button></div>
+    <div class="row">${hasGuestData()?`<button class="btn ghost" id="acctMove" type="button">Copy this device's guest data into my account</button>`:""}${prov==="email"?`<button class="btn ghost" id="acctPw" type="button">Change password</button>`:""}<button class="btn danger" id="acctOut" type="button">Sign out</button></div>
     <details class="inset"><summary>Delete everything in my account</summary><div style="display:flex;flex-direction:column;gap:8px;margin-top:8px"><span class="small">Removes every artifact, character and picture stored in this account. Export a backup first if you might want it back.</span>
       <label class="fld">Type DELETE to confirm<input type="text" id="acctDelTxt" autocomplete="off"></label><div class="row"><button class="btn danger" id="acctDel" type="button">Delete all my data</button></div></div></details></div>`;}
 async function deleteAllCloud(btn){btn.disabled=true;try{
@@ -1387,7 +1438,8 @@ async function deleteAllCloud(btn){btn.disabled=true;try{
     const ids=[...SBPIC.keys()].map(k=>k.slice(3));for(let i=0;i<ids.length;i+=100)await sb.storage.from("pictures").remove(ids.slice(i,i+100));
     toast("All data deleted");setTimeout(()=>location.reload(),600);}catch(e){toast("Couldn't delete: "+e.message);btn.disabled=false;}}
 async function initStore(){
-  if(CLOUD_ON){try{setSync("Connecting…");sbUser=await cloudStart();}catch(e){sbUser=null;toast("Couldn't reach the account service. Using this device only.");}
+  if(CLOUD_ON){sbClient().then(loadSharedPics).catch(()=>{});
+    try{setSync("Connecting…");sbUser=await cloudStart();if(sbUser)await checkAdmin();}catch(e){sbUser=null;toast("Couldn't reach the account service. Using this device only.");}
     if(sbUser){try{db=makeCloudDb();setSync("Loading your account…");await db.load();assets=makeCloudAssets();await sbPicsLoad();
         mode="db";setSync("Saved to "+(sbUser.email||"your account"));
         db.collection("arts").onSnapshot(s=>{arts=s.docs.map(d=>({id:d.id,...d.data()}));scheduleRender();});
@@ -1494,12 +1546,15 @@ const EL_SVG={
 function initials(n){const w=n.replace(/[()]/g,"").split(" ").filter(Boolean);return (w.length>1?w[0][0]+w[1][0]:n.slice(0,2)).toUpperCase();}
 function badge(name,size){
   const c=CHARS[name]||{};const el=c.el||"x";const o=ownedRec(name);
-  const inner=o&&o.pic?`<img src="${picSrc(o.pic)}" alt="">`:initials(name);
+  const cp=charPic(name,o);const inner=cp?`<img src="${picSrc(cp)}" alt="">`:initials(name);
   return `<span data-char="${esc(name)}" class="badge e-${el}${size==="sm"?" sm":""}" style="${size&&size!=="sm"?`--sz:${size}px`:""}" aria-hidden="true">${inner}${size==="sm"||!c.el?"":`<span class="el">${elIcon(c.el)}</span>`}</span>`;
 }
 function artIco(a){const p=a.pic||setImg(a);return p?`<img src="${picSrc(p)}" alt="">`:slotIcon(a.slot);}
 function stars(r){return `<span class="stars${r===4?" r4":""}" aria-label="${r} star">${"★".repeat(r||5)}</span>`;}
+/* artifacts or characters saved on this device while not signed in */
+function hasGuestData(){const a=lsGet(LS_A),c=lsGet(LS_C);return !!((a&&a.length)||(c&&Object.keys(c).length));}
 function ownedRec(name){return Object.values(owned).find(x=>x.name===name);}
+function charPic(name,o){return (o&&o.pic)||DEFPICS.chars[name]||"";}
 function slug(s){return s.replace(/[^A-Za-z0-9]+/g,"-").replace(/^-|-$/g,"").toLowerCase()||"x";}
 function ownedList(){return Object.values(owned).filter(o=>CHARS[o.name]).map(o=>o.name).sort((a,b)=>a.localeCompare(b));}
 function weightsFor(name){const c=CHARS[name];const o=Object.values(owned).find(x=>x.name===name);return {...baseWeights(c),...((o&&o.weights)||{})};}
@@ -1889,7 +1944,7 @@ function renderTrain(){
   if(!names.includes(selChar)) selChar=list[0]||"";
   $("roster").innerHTML=list.map(n=>{const c=CHARS[n],o=ownedRec(n)||{},k=checksFor(n);const ok=k.level&&k.weapon&&k.artifacts&&k.talents;
     return `<button class="tile${rarityOf(n)===4?" r4":""}" type="button" data-n="${esc(n)}" aria-pressed="${n===selChar}" aria-label="${esc(n)}">
-      <span class="art2">${o.pic?`<img src="${picSrc(o.pic)}" alt="">`:initials(n)}
+      <span class="art2">${charPic(n,o)?`<img src="${picSrc(charPic(n,o))}" alt="">`:initials(n)}
       ${c.el?`<span class="elc e-${c.el}">${elIcon(c.el)}</span>`:""}${o.top?`<span class="crown" title="Your #1 character">♛</span>`:""}
       ${ok?`<span class="stat ok">${CHECK}</span>`:`<span class="rd num">${readiness(n)}%</span>`}</span>
       <span class="lvlbar">Lv. ${o.level||"?"}</span></button>`;}).join("")+
@@ -1940,7 +1995,7 @@ ${(()=>{const notes=[c.roleChanged?`<b>${esc(c.role)} build:</b> ${esc(c.sands.m
       return notes.length?`<details class="howto"><summary>Build notes</summary>${notes.map(x=>`<p style="margin:4px 0 0">${x}</p>`).join("")}</details>`:"";})()}`;
   el.innerHTML=`<div class="paper">
     <div class="hero e-${c.el||"x"}${o.banner?" hasbn":""}">${o.banner?`<img class="hbn" src="${picSrc(o.banner)}" alt="">`:""}
-      <div class="hpic${rarityOf(name)===4?" r4":""}">${o.pic?`<img src="${picSrc(o.pic)}" alt="">`:initials(name)}</div>
+      <div class="hpic${rarityOf(name)===4?" r4":""}">${charPic(name,o)?`<img src="${picSrc(charPic(name,o))}" alt="">`:initials(name)}</div>
       <div class="hinfo"><div class="ey">${c.el?`<span class="hel">${elIcon(c.el,"#fff")}</span>${ELNAME[c.el]} · `:""}${rarityOf(name)}★ · Lv. ${lvl}</div>
         <h2>${o.top?"♛ ":""}${esc(name)}</h2>
         <div class="hlab">${esc(readyLabel(rd))}${o.top?(o.akasha&&o.akasha.top!=null?` · Akasha top ${o.akasha.top}%`:" · vs top players"):""}</div></div>
@@ -2213,8 +2268,8 @@ function upgradePlan(name){
 
 /* ---------- settings: shared pictures ---------- */
 let imgs={el:{},sets:{}};const LS_I="appraiser.imgs";
-function elIcon(el,color){const id=imgs.el&&imgs.el[el];return id?`<img src="${picSrc(id)}" alt="" style="width:100%;height:100%;object-fit:contain">`:`<svg viewBox="0 0 24 24" style="fill:${color||"var(--ec)"}" class="e-${el}">${EL_SVG[el]}</svg>`;}
-function setImg(a){return imgs.sets&&imgs.sets[a.set+"|"+a.slot];}
+function elIcon(el,color){const id=(imgs.el&&imgs.el[el])||DEFPICS.el[el];return id?`<img src="${picSrc(id)}" alt="" style="width:100%;height:100%;object-fit:contain">`:`<svg viewBox="0 0 24 24" style="fill:${color||"var(--ec)"}" class="e-${el}">${EL_SVG[el]}</svg>`;}
+function setImg(a){return (imgs.sets&&imgs.sets[a.set+"|"+a.slot])||DEFPICS.sets[a.set+"|"+a.slot];}
 async function saveImgs(next){imgs=next;
   if(mode==="db"){try{await db.doc("settings/images").set(imgs);}catch(e){toast("Couldn't save pictures");}}
   else{lsSet(LS_I,imgs);scheduleRender();}}
@@ -2231,8 +2286,8 @@ function renderSettings(){
   const banners=names.map(n=>{const o=ownedRec(n)||{};return cell("banner",n,n,o.banner,`<span class="bnprev e-${(CHARS[n]||{}).el||"x"}">${o.banner?`<img src="${picSrc(o.banner)}" alt="">`:badge(n,30)}</span>`);}).join("");
   const els=Object.keys(ELNAME).map(e=>cell("el",e,ELNAME[e],imgs.el&&imgs.el[e],`<span class="badge e-${e}" style="--sz:64px"><span style="width:62%;height:62%;display:grid;place-items:center">${elIcon(e,"#fff")}</span></span>`)).join("");
   const setsInBag=[...new Set(arts.map(a=>a.set))].sort();
-  const setRows=setsInBag.map(st=>`<div class="inset"><h3>${esc(st)}</h3><div class="pgrid">${SLOTS.map(([k,l])=>{const id=imgs.sets&&imgs.sets[st+"|"+k];
-     return cell("set",st+"|"+k,l,id,`<span class="icotile${arts.filter(x=>x.set===st).every(x=>x.rarity===4)?" r4":""}">${id?`<img src="${picSrc(id)}" alt="">`:slotIcon(k)}</span>`);}).join("")}</div></div>`).join("");
+  const setRows=setsInBag.map(st=>`<div class="inset"><h3>${esc(st)}</h3><div class="pgrid">${SLOTS.map(([k,l])=>{const id=imgs.sets&&imgs.sets[st+"|"+k],shown=id||DEFPICS.sets[st+"|"+k];
+     return cell("set",st+"|"+k,l,id,`<span class="icotile${arts.filter(x=>x.set===st).every(x=>x.rarity===4)?" r4":""}">${shown?`<img src="${picSrc(shown)}" alt="">`:slotIcon(k)}</span>`);}).join("")}</div></div>`).join("");
   el.innerHTML=`${accountPanel()}<div class="paper"><h2>Add many pictures at once</h2><span class="small">Select a batch from Photo Library or Files, then choose where each one goes. Characters, element icons and artifact slots all work. Once saved, you can delete the originals from your device.</span><div class="row"><label class="btn gold" tabindex="0">Select pictures<input type="file" accept="image/*" multiple hidden id="bulkIn"></label></div><div id="bulkBox"></div></div>
    <div class="paper"><h2>Character pictures</h2><div class="okmsg"><span class="onTouch"><b>Paste:</b> copy an image, tap the <b>Paste</b> box under a picture, then choose Paste in the bubble. <b>Upload</b> opens your Photo Library.</span><span class="onPC"><b>On a computer:</b> copy an image, then click <b>Click to paste</b> under a picture (or press Ctrl+V while it's highlighted). You can also drag a picture file onto a card. After each paste, the next box is ready, so you can go down the list.</span></div><span class="small">Shown on roster tiles, badges and teams.</span><div class="pgrid">${chars||'<span class="small">Add characters on the Training Guide first.</span>'}</div></div>
    <div class="paper"><h2>Character banners</h2><span class="small">A wide picture shown behind the character's header on the Training Guide. Any shape works; landscape art (about 3:1) looks best. Characters without one keep the element-colored header.</span><div class="pgrid bngrid">${banners}</div></div>
@@ -2240,8 +2295,8 @@ function renderSettings(){
      <div class="pgrid introgrid">${cell("intro","intro","Intro background",imgs.intro,`<span class="intprev">${imgs.intro?`<img src="${picSrc(imgs.intro)}" alt="">`:`<span class="small">Default picture</span>`}</span>`)}</div>
      <label class="row" style="gap:8px;font-size:.88rem;cursor:pointer"><input type="checkbox" id="introSkip" ${(()=>{try{return localStorage.getItem("appraiser.noIntro")==="1";}catch(_){return false;}})()?"checked":""}> Skip the intro on this device</label></div>
    <div class="paper"><h2>Element icons</h2><span class="small">Replace the built-in element symbols with your own images. Transparent PNGs look best.</span><div class="pgrid">${els}</div></div>
-   <div class="paper"><h2>Artifact pictures by set</h2><span class="small">One picture covers every piece of that set and slot in your bag. A picture added on a single artifact (with the + button) still takes priority.</span><div class="row"><button class="btn gold" id="fixBlack" type="button">Remove black backgrounds</button><span class="small">For pictures added before transparency was supported: turns the black around each artifact clear again so the gold or purple shows.</span></div>${setRows||'<span class="small">Your bag is empty.</span>'}</div>`+exportPanel();
-  pagerize(el,"settings","side",{"Add many pictures at once":"Bulk add","Character pictures":"Characters","Character banners":"Banners","Intro picture":"Intro","Element icons":"Elements","Artifact pictures by set":"Artifacts","Export and backup":"Export & backup"});
+   <div class="paper"><h2>Artifact pictures by set</h2><span class="small">One picture covers every piece of that set and slot in your bag. A picture added on a single artifact (with the + button) still takes priority.</span><div class="row"><button class="btn gold" id="fixBlack" type="button">Remove black backgrounds</button><span class="small">For pictures added before transparency was supported: turns the black around each artifact clear again so the gold or purple shows.</span></div>${setRows||'<span class="small">Your bag is empty.</span>'}</div>`+sharedPanel()+exportPanel();
+  pagerize(el,"settings","side",{"Shared pictures (admin)":"Shared pictures","Add many pictures at once":"Bulk add","Character pictures":"Characters","Character banners":"Banners","Intro picture":"Intro","Element icons":"Elements","Artifact pictures by set":"Artifacts","Export and backup":"Export & backup"});
   renderBulk();
   if(nextPz){const [k,...rest]=nextPz.split("|");const key=rest.join("|");const t=[...el.querySelectorAll(".pz")].find(z=>z.dataset.kind===k&&z.dataset.key===key);if(t){t.focus({preventScroll:false});}nextPz=null;}
 }
@@ -2904,7 +2959,7 @@ function transmuterSection(R){
   const G=[];L.forEach(x=>{let g=G.find(y=>y.n===x.n);if(!g){if(G.length>=10)return;g={n:x.n,list:[]};G.push(g);}g.list.push(x);});   // one entry per character
   if(tmSel>=G.length)tmSel=0;const grp=G[tmSel];const t=grp.list.find(x=>x.slot===tmSlot)||grp.list[0];const slotName=SLOTS.find(s=>s[0]===t.slot)[1];
   const full={flower:"Flower of Life",plume:"Plume of Death",sands:"Sands of Eon",goblet:"Goblet of Eonothem",circlet:"Circlet of Logos"}[t.slot];
-  const pic=imgs.sets&&imgs.sets[t.set+"|"+t.slot];
+  const pic=setImg(t);
   return `<div class="paper" data-keep="sec-tm"><h2>Artifact Transmuter</h2>
     <span class="small">What to set in the game's Artifact Transmuter, best first. Tap a character, then a lit slot tab (green dot) to see each piece to craft for them.</span>
     <div class="tmlist">${G.map((g,i)=>`<button type="button" data-tm="${i}" aria-pressed="${i===tmSel}">${i+1}. ${isTop(g.n)?"♛ ":""}<span>${esc(g.n)}</span>${g.list.length>1?`<span class="small">${g.list.length} pieces</span>`:""}</button>`).join("")}</div>
@@ -3244,10 +3299,9 @@ async function restoreBackup(d,progress){
 }
 function exportPanel(){
   return `<div class="paper"><h2>Export and backup</h2>
-    <span class="small">Take your data anywhere. Every export includes the pictures you added.</span>
+    <span class="small">Take your data anywhere. The backup file includes the pictures you added.</span>
     <div class="expgrid">
-      <div class="inset"><h3>Standalone app</h3><span class="small">The whole app in one .html file with your characters, artifacts and pictures built in. Open it in any browser, even offline. Changes made there are saved in that browser.</span><button class="btn gold" type="button" data-exp="html">Download app (.html)</button></div>
-      <div class="inset"><h3>Backup file</h3><span class="small">All your data and pictures in one .json file. Restore it here, in the standalone app, or on another account.</span><button class="btn gold" type="button" data-exp="json">Download backup (.json)</button></div>
+      <div class="inset"><h3>Backup file</h3><span class="small">All your data and pictures in one .json file. Restore it here or on another account.</span><button class="btn gold" type="button" data-exp="json">Download backup (.json)</button></div>
       <div class="inset"><h3>Spreadsheet</h3><span class="small">Your artifact list with grades, for Excel, Numbers or Google Sheets. Pictures aren't included in spreadsheets.</span><button class="btn ghost" type="button" data-exp="csv">Download artifacts (.csv)</button></div>
     </div>
     <div class="row"><label class="btn ghost" tabindex="0">Restore from backup<input type="file" accept=".json,application/json" id="restoreIn" hidden></label><span class="small" id="expMsg"></span></div>
@@ -3539,7 +3593,7 @@ $("pasteBtn").addEventListener("click",async()=>{
 });
 function setHdr(){const h=document.querySelector("header.top");if(h)document.documentElement.style.setProperty("--hdr",h.offsetHeight+"px");}
 setHdr();window.addEventListener("resize",setHdr);try{new ResizeObserver(setHdr).observe(document.querySelector("header.top"));}catch(e){}if(document.fonts)document.fonts.ready.then(setHdr);
-wireSettings(); wireSettingsRm(); wireBulk(); wireExport(); wireMany(); wireShots(); wireOptimizer(); wireQuick(); wireSecNav(); renderAll(); (async()=>{await initStore();await initAssets();})();
+wireSettings(); wireSettingsRm(); wireShared(); wireBulk(); wireExport(); wireMany(); wireShots(); wireOptimizer(); wireQuick(); wireSecNav(); renderAll(); (async()=>{await initStore();await initAssets();})();
 
 </script>
 

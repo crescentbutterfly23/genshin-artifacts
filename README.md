@@ -14,6 +14,8 @@ It runs as a static site on GitHub Pages. Sign-in and cloud backups are handled 
 | `index.html` | The whole app |
 | `config.js` | Your Supabase project URL and public key, which you fill in once |
 | `supabase/setup.sql` | Creates the database table, storage and privacy rules |
+| `supabase/admin.sql` | Adds admin accounts and the shared pictures every user sees |
+| `defaults/` | Built-in element icons, set pictures and character pictures |
 | `build.py` | Rebuilds `index.html` from the single-file version of the app |
 
 ---
