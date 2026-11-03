@@ -1,0 +1,8 @@
+.DS_Store
+Thumbs.db
+*.local
+.env
+.env.*
+backups/
+*.backup.json
+artifact-appraiser-backup-*.json
