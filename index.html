@@ -215,6 +215,8 @@ details summary{cursor:pointer;font-weight:900;font-size:.9rem}
 .bagmode input{width:20px;height:20px;margin-top:2px;accent-color:var(--gold);flex:none}
 .qm{position:fixed;inset:0;z-index:30;background:rgba(15,17,32,.6);display:grid;place-items:center;padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));overflow-y:auto}
 .qmCard{width:min(520px,100%);max-height:100%;overflow-y:auto}
+html,body{overflow-x:clip;max-width:100%}
+#optBody select{width:100%;min-width:0}
 .icotile.chg{outline:3px solid var(--gold);outline-offset:1px}.icotile.tap{cursor:pointer}.icotile.tap:hover{filter:brightness(1.08)}.icotile.tap:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 .secnav{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
 .secnav::-webkit-scrollbar{display:none}
@@ -3134,14 +3136,14 @@ function costSection(){
   const tiers=(a,ns)=>a.map((v,j)=>v?`${v} ${ns[j]}`:"").filter(Boolean).join(" · ");
   return `<div class="paper" data-keep="sec-cost"><h2>Leveling cost</h2>
     <span class="small">How much Mora, EXP, materials and Original Resin it takes to finish leveling your characters, their weapons and talents.</span>
-    <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:6px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:6px;min-width:0">
       <label class="fld">Who<select id="costScope">${opt("all","Everyone",costOpt.scope)}${opt("ch","Abyss & Theater line-up",costOpt.scope)}${names.map(n=>opt(n,n,costOpt.scope)).join("")}</select></label>
       <label class="fld">Character level<select id="costLv">${[70,80,90].map(v=>opt(v,v,costOpt.lv)).join("")}</select></label>
       <label class="fld">Weapon level<select id="costWlv">${[70,80,90].map(v=>opt(v,v,costOpt.wlv)).join("")}</select></label>
       <label class="fld">Talents to<select id="costTal">${[6,8,9,10].map(v=>opt(v,v,costOpt.tal)).join("")}</select></label>
-      <label class="small" style="align-self:end"><input type="checkbox" id="costNa" ${costOpt.na?"checked":""}> Include Normal Attack</label></div>
+      <label class="small" style="align-self:end;display:flex;gap:6px;align-items:center"><input type="checkbox" id="costNa" ${costOpt.na?"checked":""}> Include Normal Attack</label></div>
     ${!L.length?`<div class="empty">Nothing left to level for ${sel.length===1?esc(sel[0]):"these characters"} at these targets.</div>`:`
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px">
       ${cell("Mora",fmt(T.mora))}${cell("Hero's Wit",fmt(T.wits))}${cell("Mystic Enhancement Ore",fmt(T.ores))}${cell("Boss drops",fmt(T.boss))}${cell("Local specialties",fmt(T.spec))}
       ${cell("Weekly boss drops",fmt(T.wk))}${cell("Crowns of Insight",fmt(T.crown))}${cell("Original Resin (about)",fmt(T.resin))}</div>
     <span class="small">≈ <b>${fmt(days)} day${days===1?"":"s"}</b> of natural resin (180 a day)${refill?`, or <b>${fmt(refill*60)} Primogems</b> in refills to finish in a week (60 Primogems per 60 resin; real refills get pricier after the first few each day)`:""}.</span>
