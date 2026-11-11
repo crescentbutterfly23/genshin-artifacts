@@ -1819,7 +1819,7 @@ let bagDetail=false;try{bagDetail=localStorage.getItem("appraiser.bagDetail")===
 function renderBag(){
   const OC=outclassInfo();
   const ocNote=OC.none?`<div class="small" style="color:#C9C3E2">Open Best Setup once to also mark outclassed pieces here.</div>`:optStale?`<div class="small" style="color:#C9C3E2">Outclassed labels are from your last Best Setup calculation. Recalculate there after adding a lot of pieces.</div>`:"";
-  const list=arts.map(a=>{let v=verdict(a);if(OC.set.has(a.id)&&(v.tag==="maybe"||v.tag==="keep")){v={...v,tag:"fodder",outclassed:true,was:v.tag};}return {a,v};});
+  const list=arts.map(a=>{let v=verdict(a);if(OC.set.has(a.id)&&(v.tag==="maybe"||v.tag==="keep"||v.tag==="fav")){v={...v,tag:"fodder",outclassed:true,was:v.tag};}return {a,v};});
   const counts={fav:0,keep:0,level:0,maybe:0,fodder:0};list.forEach(x=>counts[x.v.tag]++);
   $("bagCount").textContent=arts.length||"";
   const labels=[["fav","★ Favorites"],["keep","Keepers"],["level","To level"],["maybe","Filler"],["fodder","Discard"]];
@@ -1828,7 +1828,7 @@ function renderBag(){
   if(!arts.length) note.innerHTML="";
   else if(counts.fodder===0) note.innerHTML="";
   else if(bagFilter!=="fodder")note.innerHTML="";
-  else{const oc=list.filter(x=>x.v.outclassed).length;note.innerHTML=`<div class="paper" style="gap:4px"><span><b>${counts.fodder} piece${counts.fodder>1?"s":""} you can let go.</b> <span class="small">Tap Discard above to see them.</span></span><details class="howto"><summary>What to do with them</summary>${oc?`${oc} of them ${oc>1?"are":"is"} <b>outclassed</b>: decent pieces, but every character who could use them already has something better (including spares in your bag), so nobody would wear them. `:""}Feed them to other artifacts, or trade 3 unwanted 5★ pieces at the Strongbox (Mystic Offering) for one piece from a set you choose. Equipped pieces are only marked once Best Setup moves something better into their place.</details></div>`;}
+  else{const oc=list.filter(x=>x.v.outclassed).length;note.innerHTML=`<div class="paper" style="gap:4px"><span><b>${counts.fodder} piece${counts.fodder>1?"s":""} you can let go.</b> <span class="small">Tap Discard above to see them.</span></span><details class="howto"><summary>What to do with them</summary>${oc?`${oc} of them ${oc>1?"are":"is"} <b>outclassed</b>: they wouldn't add damage anywhere: every character who could use them already has something better (including spares in your bag), so nobody would wear them in the strongest setup. `:""}Feed them to other artifacts, or trade 3 unwanted 5★ pieces at the Strongbox (Mystic Offering) for one piece from a set you choose. Equipped pieces are only marked once Best Setup moves something better into their place.</details></div>`;}
   note.innerHTML+=ocNote;
   note.innerHTML+=arts.length&&bagView==="list"?`<details class="howto night"><summary>How to read the numbers</summary>Each piece shows its fit for the best character and how their build readiness changes if they wear it, for example <b>+4% → 88% built</b>. If someone else is wearing it, <b>If you switch</b> adds up the gain and what the current wearer loses (they get the other character's old piece, like in game). Turn on <b>Show details</b> to see each side. Pieces still being leveled are counted at their expected result.</details>`:"";
   const slotSel=$("bagSlot"); if(slotSel.options.length<2) slotSel.innerHTML+=SLOTS.map(([k,l])=>`<option value="${k}">${l}</option>`).join("");
@@ -2716,7 +2716,8 @@ const BUFF_V=22;   // a team-buff 4-piece on a support is worth about as much as
 function roleWeight(n){const o=ownedRec(n)||{};const r=(CHARS[n]||{}).role||"";if(o.top)return 8;return (o.priority?1.5:1)*(ROLE_W[r]??.7);}
 async function setTop(n,on){if(!n)return;await putChar(n,{top:on!==false});if(on!==false)topView=n;if(optCache)optStale=true;}
 function pieceScore(a,n){const r=appraiseFor(a,n);if(!r)return null;return r.maxed?r.cur:Math.max(r.cur,r.exp*.9);}
-let optAllowWorse=false;try{optAllowWorse=localStorage.getItem("appraiser.allowWorse")==="1";}catch(_){}
+// the goal is the most damage possible, so by default supports may give up pieces the damage dealers can use better
+let optAllowWorse=true;try{optAllowWorse=localStorage.getItem("appraiser.dmgFirst")!=="0";}catch(_){}
 function runOptimizer(){
   const names=ownedList();if(!names.length)return null;
   const cache=new Map();names.forEach(n=>cache.set(n,new Map()));
@@ -2891,7 +2892,7 @@ function renderOptimizerNow(){
       <div><span class="small">After swaps</span><b class="num" style="color:var(--ok)">${Math.round(R.total.a)}%</b></div>
       <div><span class="small">Swaps done</span><b class="num">${R.moves.filter(moveDone).length} of ${R.moves.length}</b></div>
     </div>
-    <label class="row" style="gap:10px;font-size:.88rem;cursor:pointer;flex-wrap:nowrap;align-items:flex-start"><input type="checkbox" id="optWorse" ${optAllowWorse?"checked":""}> <span><b>Let supports give up pieces</b> <span class="small">so damage dealers gain more</span></span></label>
+    <label class="row" style="gap:10px;font-size:.88rem;cursor:pointer;flex-wrap:nowrap;align-items:flex-start"><input type="checkbox" id="optWorse" ${optAllowWorse?"checked":""}> <span><b>Maximum damage</b> <span class="small">supports may give up pieces so damage dealers hit harder (turn off so no one gets worse)</span></span></label>
     <details class="inset" id="starBox" ${starsOpen?"open":""}><summary>Who matters most (${ownedList().filter(n=>(ownedRec(n)||{}).priority).length} starred)</summary>
       <span class="small">Star the characters you play most. They get first pick of artifacts.</span>
       <div class="chips">${ownedList().map(n=>`<button type="button" class="chip ${((ownedRec(n)||{}).priority)?"on":""}" data-star="${esc(n)}">${(ownedRec(n)||{}).priority?"★":"☆"} ${esc(n)}</button>`).join("")}</div></details>
@@ -2965,7 +2966,7 @@ function wireOptimizer(){
   el.addEventListener("change",async e=>{const id=e.target.id,n=topChar();
     if(e.target.dataset&&e.target.dataset.topck!=null){const x=e.target.dataset.topck;await setTop(x,e.target.checked);if(optCache)optStale=true;renderOptimizer();toast(e.target.checked?x+" added to #1s":x+" removed from #1s");return;}
     if(id==="baSort"){baSort=e.target.value;try{localStorage.setItem("appraiser.baSort",baSort);}catch(_){}renderOptimizer();buildSecNav();return;}
-    if(id==="optWorse"){optAllowWorse=e.target.checked;try{localStorage.setItem("appraiser.allowWorse",optAllowWorse?"1":"0");}catch(_){}optCache=null;optStale=false;tmCache=null;renderOptimizer();buildSecNav();toast(optAllowWorse?"Some characters may give up pieces now":"No one gets worse now");return;}
+    if(id==="optWorse"){optAllowWorse=e.target.checked;try{localStorage.setItem("appraiser.dmgFirst",optAllowWorse?"1":"0");}catch(_){}optCache=null;optStale=false;tmCache=null;renderOptimizer();buildSecNav();toast(optAllowWorse?"Maximum damage: supports may give up pieces":"No one gets worse now");return;}
     if(n&&(id==="akUid"||id==="akTop"||id==="akBest")){const o=ownedRec(n)||{};
       if(id==="akUid"){await putChar(n,{uid:e.target.value.replace(/\D/g,"")});}
       else{const ak={...(o.akasha||{})};const v=e.target.value===""?null:+e.target.value;if(id==="akTop")ak.top=v;else ak.bestCV=v;ak.when=new Date().toLocaleDateString();await putChar(n,{akasha:ak});}
