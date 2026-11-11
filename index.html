@@ -2777,6 +2777,7 @@ let secSel=SEC_OVERVIEW;try{secSel=localStorage.getItem("appraiser.secSel")||SEC
 const EV_DESC={"Best setup for your whole roster":"How much your roster gains if every artifact goes to the character it fits best.",
  "Swaps":"By character shows each character's pieces and score now and after; Step by step lists every move in the order to make it in game. Tick swaps off as you go.",
  "Abyss & Theater":"Make a line-up as strong as possible for Spiral Abyss or Imaginarium Theater, then put every borrowed piece back.",
+ "Leveling cost":"Mora, EXP, materials and resin needed to finish leveling characters, weapons and talents.",
  "Your #1 characters":"The characters you want to be top-tier, graded against real Akasha rankings.",
  "Artifact Transmuter":"Exact recipes for the game's Artifact Transmuter. Pick a character, then a lit slot.",
  "Road to 90%+":"What each character still needs to reach 90%.",
@@ -2787,6 +2788,7 @@ function secTitle(p){const h=p.querySelector(":scope > h2, :scope > .row > h2");
 function secSummary(t){const R=optCache;if(!R)return "";
   try{if(t==="Swaps"){const d=R.moves.filter(moveDone).length;const c=R.rows.filter(r=>r.changed).length;return R.moves.length?`${d} of ${R.moves.length} done · ${c} improve`:"Nothing to swap";}
     if(t==="Abyss & Theater"){const l=chLoaned().length;return l?`⚔ ${l} piece${l===1?"":"s"} on loan`:chSel.length?`${chSel.length} picked`:"Pick a line-up";}
+    if(t==="Leveling cost"){const m=ownedList().map(costFor).reduce((a,c)=>a+c.mora,0);return m?fmt(m)+" Mora left":"All done";}
     if(t==="Your #1 characters"){const L=topChars();return L.length?"♛ "+L.join(", "):"None picked";}
     if(t==="Artifact Transmuter"){const L=(tmCache&&tmCache.L)||[];const n=new Set(L.map(x=>x.n)).size;return n?`Recipes for ${n} character${n===1?"":"s"}`:"Nothing to craft";}
     if(t==="Reshape candidates"){const n=reshapeCandidates().length;return n?`${n} piece${n===1?"":"s"} worth it`:"None right now";}
@@ -2921,6 +2923,7 @@ function renderOptimizerNow(){
   ${topSection(R)}
   ${transmuterSection(R)}
   ${roadSection(R)}
+  ${costSection()}
   ${reshapeSection()}
   <div class="paper" data-keep="sec-farm"><h2>What to farm next</h2>
     <span class="small">After the swaps, these sets would lift the most characters. Each domain run also drops a second set, so the partner set builds up too.</span>
@@ -3067,6 +3070,70 @@ function wireChallenge(){const el=$("optBody");
     if(e.target.id==="chApply"){const P=chPlan();if(!P||!P.changes.length)return;e.target.disabled=true;await chApply(P);optCache=null;optStale=false;renderAll();toast("Loan saved. Put them back here when you're done");return;}
     if(e.target.id==="chRestore"){if(!confirm("Mark every borrowed piece as back with its owner?"))return;e.target.disabled=true;await chRestore();optCache=null;optStale=false;renderAll();toast("Everything is back home");return;}
   });}
+
+/* ---------- Leveling cost: Mora, EXP, materials and Original Resin to reach a target ---------- */
+const LV_BRK=[1,20,40,50,60,70,80,90];
+const CEXP=[0,120175,698500,1277600,2131725,3327650,4939525,8362650];   // character EXP needed from level 1
+const WEXP={5:9064450,4:6042650,3:4144000};                              // weapon EXP from level 1 to 90 (curve follows the character one)
+function cumExp(lv,tot){lv=Math.max(1,Math.min(90,lv||1));let i=0;while(i<LV_BRK.length-2&&lv>LV_BRK[i+1])i++;
+  const f=(lv-LV_BRK[i])/(LV_BRK[i+1]-LV_BRK[i]);return (CEXP[i]+(CEXP[i+1]-CEXP[i])*f)*tot/CEXP[7];}
+// ascension phases at 20/40/50/60/70/80
+const C_ASC=[{m:20000,gem:[1,0,0,0],boss:0,spec:3,com:[3,0,0]},{m:40000,gem:[0,3,0,0],boss:2,spec:10,com:[15,0,0]},{m:60000,gem:[0,6,0,0],boss:4,spec:20,com:[0,12,0]},
+  {m:80000,gem:[0,0,3,0],boss:8,spec:30,com:[0,18,0]},{m:100000,gem:[0,0,6,0],boss:12,spec:45,com:[0,0,12]},{m:120000,gem:[0,0,0,6],boss:20,spec:60,com:[0,0,24]}];
+const W_ASC_M={5:[10000,20000,30000,45000,55000,65000],4:[5000,15000,20000,30000,35000,45000],3:[5000,10000,15000,20000,25000,30000]};
+// talent level n -> n+1 (index 0 = 1->2)
+const T_UP=[{m:12500,bk:[3,0,0],com:[6,0,0]},{m:17500,bk:[0,2,0],com:[0,3,0]},{m:25000,bk:[0,4,0],com:[0,4,0]},{m:30000,bk:[0,6,0],com:[0,6,0]},{m:37500,bk:[0,9,0],com:[0,9,0]},
+  {m:120000,bk:[0,0,4],com:[0,0,4]},{m:260000,bk:[0,0,6],com:[0,0,6],wk:1},{m:450000,bk:[0,0,12],com:[0,0,9],wk:1},{m:700000,bk:[0,0,16],com:[0,0,12],wk:2,crown:1}];
+function weapRarity(name){for(const k in WEAPONS){const w=WEAPONS[k];if(w.r5.includes(name))return 5;if(w.r4.includes(name))return 4;if(w.r3.includes(name))return 3;}return 5;}
+let costOpt={lv:90,wlv:90,tal:9,na:false,scope:"all"};try{costOpt={...costOpt,...JSON.parse(localStorage.getItem("appraiser.costOpt")||"{}")};}catch(_){}
+function costFor(n){const o=ownedRec(n)||{};const out={n,mora:0,cexp:0,wexp:0,gem:[0,0,0,0],boss:0,spec:0,com:[0,0,0],bk:[0,0,0],tcom:[0,0,0],wk:0,crown:0,wmora:0,parts:[]};
+  const lv=o.level||1,tgt=costOpt.lv;
+  if(lv<tgt){out.cexp=Math.max(0,cumExp(tgt,CEXP[7])-cumExp(lv,CEXP[7]));out.mora+=out.cexp/5;
+    [20,40,50,60,70,80].forEach((b,i)=>{if(lv<=b&&tgt>b){const a=C_ASC[i];out.mora+=a.m;a.gem.forEach((v,j)=>out.gem[j]+=v);out.boss+=a.boss;out.spec+=a.spec;a.com.forEach((v,j)=>out.com[j]+=v);}});
+    out.parts.push(`Lv ${lv}→${tgt}`);}
+  const w=o.weapon||{};if(w.name){const wl=w.level||1,wt=costOpt.wlv,r=weapRarity(w.name);
+    if(wl<wt){const e=Math.max(0,cumExp(wt,WEXP[r])-cumExp(wl,WEXP[r]));out.wexp=e;out.wmora+=e/10;
+      [20,40,50,60,70,80].forEach((b,i)=>{if(wl<=b&&wt>b)out.wmora+=W_ASC_M[r][i];});out.parts.push(`${w.name} ${wl}→${wt}`);}}
+  const t=o.talents||[];[costOpt.na?0:null,1,2].forEach(i=>{if(i==null)return;const from=Math.max(1,t[i]||1),to=costOpt.tal;if(from>=to)return;
+    for(let L=from;L<to;L++){const u=T_UP[L-1];out.mora+=u.m;u.bk.forEach((v,j)=>out.bk[j]+=v);u.com.forEach((v,j)=>out.tcom[j]+=v);out.wk+=u.wk||0;out.crown+=u.crown||0;}
+    out.parts.push(`${["NA","Skill","Burst"][i]} ${from}→${to}`);});
+  out.mora+=out.wmora;out.wits=Math.ceil(out.cexp/20000);out.ores=Math.ceil(out.wexp/10000);
+  // Original Resin, world level 8 averages: Ley Line 20 → 60,000 Mora or ~100,000 character EXP; boss 40 → ~2.6 drops;
+  // weekly boss 60 → ~1.4 drops (first 3 a week cost 30); talent domain 20 → ~2.2 blue + 1.9 green + 0.25 gold books (~5.5 green-equivalent)
+  const bkEq=out.bk[0]/3+out.bk[1]+out.bk[2]*3;
+  out.resin={mora:Math.ceil(Math.max(0,out.mora-out.cexp/5*0)/60000)*20,exp:Math.ceil((out.cexp+out.wexp*0.5)/100000)*20,boss:Math.ceil(out.boss/2.6)*40,books:Math.ceil(bkEq/5.5)*20,weekly:Math.ceil(out.wk/1.4)*60};
+  out.resinTotal=Object.values(out.resin).reduce((a,b)=>a+b,0);return out;}
+const fmt=n=>Math.round(n).toLocaleString();
+function costSection(){
+  const names=ownedList();const sel=costOpt.scope==="ch"?chSel.filter(n=>names.includes(n)):costOpt.scope==="all"?names:names.filter(n=>n===costOpt.scope);
+  const L=sel.map(costFor).filter(c=>c.parts.length);
+  const T={mora:0,wits:0,ores:0,gem:[0,0,0,0],boss:0,spec:0,com:[0,0,0],bk:[0,0,0],tcom:[0,0,0],wk:0,crown:0,resin:0};
+  L.forEach(c=>{T.mora+=c.mora;T.wits+=c.wits;T.ores+=c.ores;T.boss+=c.boss;T.spec+=c.spec;T.wk+=c.wk;T.crown+=c.crown;T.resin+=c.resinTotal;
+    c.gem.forEach((v,j)=>T.gem[j]+=v);c.com.forEach((v,j)=>T.com[j]+=v+c.tcom[j]);c.bk.forEach((v,j)=>T.bk[j]+=v);});
+  const days=Math.ceil(T.resin/180),refill=Math.ceil(Math.max(0,T.resin-180*7)/60);
+  const opt=(v,l,cur)=>`<option value="${v}" ${String(cur)===String(v)?"selected":""}>${l}</option>`;
+  const cell=(l,v)=>v?`<div class="inset" style="padding:8px 10px;display:flex;flex-direction:column"><span class="small">${l}</span><b class="num">${v}</b></div>`:"";
+  const tiers=(a,ns)=>a.map((v,j)=>v?`${v} ${ns[j]}`:"").filter(Boolean).join(" · ");
+  return `<div class="paper" data-keep="sec-cost"><h2>Leveling cost</h2>
+    <span class="small">How much Mora, EXP, materials and Original Resin it takes to finish leveling your characters, their weapons and talents.</span>
+    <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:6px">
+      <label class="fld">Who<select id="costScope">${opt("all","Everyone",costOpt.scope)}${opt("ch","Abyss & Theater line-up",costOpt.scope)}${names.map(n=>opt(n,n,costOpt.scope)).join("")}</select></label>
+      <label class="fld">Character level<select id="costLv">${[70,80,90].map(v=>opt(v,v,costOpt.lv)).join("")}</select></label>
+      <label class="fld">Weapon level<select id="costWlv">${[70,80,90].map(v=>opt(v,v,costOpt.wlv)).join("")}</select></label>
+      <label class="fld">Talents to<select id="costTal">${[6,8,9,10].map(v=>opt(v,v,costOpt.tal)).join("")}</select></label>
+      <label class="small" style="align-self:end"><input type="checkbox" id="costNa" ${costOpt.na?"checked":""}> Include Normal Attack</label></div>
+    ${!L.length?`<div class="empty">Nothing left to level for ${sel.length===1?esc(sel[0]):"these characters"} at these targets.</div>`:`
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px">
+      ${cell("Mora",fmt(T.mora))}${cell("Hero's Wit",fmt(T.wits))}${cell("Mystic Enhancement Ore",fmt(T.ores))}${cell("Boss drops",fmt(T.boss))}${cell("Local specialties",fmt(T.spec))}
+      ${cell("Weekly boss drops",fmt(T.wk))}${cell("Crowns of Insight",fmt(T.crown))}${cell("Original Resin (about)",fmt(T.resin))}</div>
+    <span class="small">≈ <b>${fmt(days)} day${days===1?"":"s"}</b> of natural resin (180 a day)${refill?`, or <b>${fmt(refill*60)} Primogems</b> in refills to finish in a week (60 Primogems per 60 resin; real refills get pricier after the first few each day)`:""}.</span>
+    <span class="small"><b>Gems:</b> ${tiers(T.gem,["sliver(s)","fragments","chunks","gemstones"])||"none"} · <b>Talent books:</b> ${tiers(T.bk,["Teachings","Guides","Philosophies"])||"none"} · <b>Common drops:</b> ${tiers(T.com,["grey","green","blue"])||"none"}</span>
+    <table class="otab"><thead><tr><th>Character</th><th>Still to do</th><th>Mora</th><th>Resin</th></tr></thead><tbody>
+      ${L.sort((a,b)=>b.mora-a.mora).map(c=>`<tr><td>${esc(c.n)}</td><td class="small">${c.parts.map(esc).join(", ")}</td><td class="num">${fmt(c.mora)}</td><td class="num">${fmt(c.resinTotal)}</td></tr>`).join("")}</tbody></table>
+    <span class="small">Estimates: levels between ascensions are interpolated, and resin uses world level 8 average drops. Weapon ascension materials aren't counted yet, only their Mora.</span>`}
+  </div>`;}
+function wireCost(){$("optBody").addEventListener("change",e=>{const m={costScope:"scope",costLv:"lv",costWlv:"wlv",costTal:"tal",costNa:"na"}[e.target.id];if(!m)return;
+  costOpt[m]=m==="na"?e.target.checked:m==="scope"?e.target.value:+e.target.value;try{localStorage.setItem("appraiser.costOpt",JSON.stringify(costOpt));}catch(_){}renderOptimizer();});}
 
 
 /* ---------- #1 character + reshape (Dust of Enlightenment) ---------- */
@@ -3372,7 +3439,7 @@ wireSwapModal();
 /* ---------- section jump bar ---------- */
 const SEC_SHORT={"Best setup for your whole roster":"Overview","Swap list":"Swaps","Before and after":"Before & after","Road to 90%+":"Road to 90%","What to farm next":"Farm next","Weapons":"Weapons",
  "Where to use your teams":"Where to use","Who to upgrade first":"Upgrade first","Your best teams":"Best teams","One character away":"One away",
- "Abyss & Theater":"Abyss & Theater","Your #1 characters":"#1 characters","Reshape candidates":"Reshape","Artifact Transmuter":"Transmuter","Add many pictures at once":"Bulk add","Character pictures":"Characters","Character banners":"Banners","Intro picture":"Intro","Element icons":"Elements","Artifact pictures by set":"Artifacts","Export and backup":"Export"};
+ "Abyss & Theater":"Abyss & Theater","Leveling cost":"Cost","Your #1 characters":"#1 characters","Reshape candidates":"Reshape","Artifact Transmuter":"Transmuter","Add many pictures at once":"Bulk add","Character pictures":"Characters","Character banners":"Banners","Intro picture":"Intro","Element icons":"Elements","Artifact pictures by set":"Artifacts","Export and backup":"Export"};
 const SEC_TABS=[];
 let secHeads=[];
 function currentTab(){const b=document.querySelector('nav.tabs button[aria-selected="true"]');return b?b.dataset.tab:"";}
@@ -3814,7 +3881,7 @@ $("pasteBtn").addEventListener("click",async()=>{
 });
 function setHdr(){const h=document.querySelector("header.top");if(h)document.documentElement.style.setProperty("--hdr",h.offsetHeight+"px");}
 setHdr();window.addEventListener("resize",setHdr);try{new ResizeObserver(setHdr).observe(document.querySelector("header.top"));}catch(e){}if(document.fonts)document.fonts.ready.then(setHdr);
-wireSettings(); wireSettingsRm(); wireShared(); wireHelp(); wireBulk(); wireExport(); wireMany(); wireShots(); wireOptimizer(); wireChallenge(); wireQuick(); wireSecNav(); renderAll(); (async()=>{await initStore();await initAssets();})();
+wireSettings(); wireSettingsRm(); wireShared(); wireHelp(); wireBulk(); wireExport(); wireMany(); wireShots(); wireOptimizer(); wireChallenge(); wireCost(); wireQuick(); wireSecNav(); renderAll(); (async()=>{await initStore();await initAssets();})();
 
 </script>
 
