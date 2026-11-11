@@ -1717,7 +1717,9 @@ function appraiseFor(a,name){
   exp+=left*.85*scale*avgW; best+=left*scale*maxW;
   const setFit=c.sets.includes(a.set)?1:.85;
   const f=setFit*m.fit;
-  return {name,cur:cur/ideal*100*f,exp:exp/ideal*100*f,best:best/ideal*100*f,onSet:setFit===1,mainAlt:m.fit<1,maxed:lvl>=maxLvl,lvl,maxLvl};
+  // Favorite rule: count rolls in the character's wanted substats (weight 0.5+), starting line included
+  const hiRolls=subs.filter(s=>(w[s.stat]||0)>=.5).reduce((t,s)=>t+Math.max(1,Math.round(s.value/(MAXROLL[s.stat]*.85))),0);
+  return {name,hiRolls,cur:cur/ideal*100*f,exp:exp/ideal*100*f,best:best/ideal*100*f,onSet:setFit===1,mainAlt:m.fit<1,maxed:lvl>=maxLvl,lvl,maxLvl};
 }
 const T={fav:62,keep:45,fill:30};
 function gradeOf(p){return p>=T.fav?"fav":p>=T.keep?"keep":p>=T.fill?"maybe":"fodder";}
@@ -1733,9 +1735,12 @@ function verdict(a){
   let v;
   if(!top){ v={tag:"fodder",title:names.length?"No one you own uses this":"Add your characters first",
       why:names.length?"None of your characters wants this main stat on this slot.":"Go to Characters and add who you own, so the Appraiser knows who could use it."}; }
-  else if(lvl>=maxLvl){ const g=gradeOf(top.cur);
+  else if(lvl>=maxLvl){ let g=gradeOf(top.cur);
+      // a maxed Favorite needs a recommended main stat and 5+ rolls (starting lines + upgrades) in highlighted substats
+      const fav=res.find(r=>gradeOf(r.cur)==="fav"&&r.hiRolls>=5);
+      if(g==="fav"&&!fav)g="keep";
       v={tag:g,title:{fav:"Best of the best — lock it",keep:"Keeper",maybe:"Filler — fine for now",fodder:"Discard"}[g],
-         why:`${Math.round(top.cur)}% for ${top.name}.`}; }
+         why:`${Math.round(top.cur)}% for ${top.name}.`+(gradeOf(top.cur)==="fav"&&g!=="fav"?` Not a Favorite: only ${top.hiRolls} of the 5 rolls needed landed in stats ${top.name} wants.`:g==="fav"?` Recommended main stat and ${(res.find(r=>r.hiRolls>=5&&gradeOf(r.cur)==="fav")||top).hiRolls} rolls in wanted substats.`:"")}; }
   else if(top.best<T.fill){ v={tag:"fodder",title:"Stop leveling — feed it",why:`Even the best case only reaches ${Math.round(top.best)}% for ${top.name}.`}; }
   else if(top.exp>=T.keep){ v={tag:"level",title:"Level it",why:`Average rolls land it at ${Math.round(top.exp)}% for ${top.name}${top.exp>=T.fav?" — Favorite territory":""}.`}; }
   else if(top.best>=T.fav){ const nxt=Math.min(maxLvl,(Math.floor(lvl/4)+1)*4);
